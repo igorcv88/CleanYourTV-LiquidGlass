@@ -443,7 +443,9 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
             });
             mp.setOnInfoListener((p, what, extra) -> {
                 if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && player == p) {
-                    cover.animate().alpha(0f).setDuration(700).start();
+                    // Over the still, a slow dissolve into the moving flight; over black (no still), quick:
+                    // measured, the first frame came 0.43 s after Home and a 0.7 s fade from black doubled it.
+                    cover.animate().alpha(0f).setDuration(cover.getDrawable() != null ? 500 : 300).start();
                     if (scenic) main.postDelayed(refreshGlass, 300);
                 }
                 return false;
