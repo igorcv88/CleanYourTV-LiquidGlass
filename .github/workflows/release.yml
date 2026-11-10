@@ -1,4 +1,4 @@
-name: CleanYourTV Scenic — Publish full Setup release
+name: Cleaner TV Liquid Glass — Publish full Setup release
 
 on:
   workflow_dispatch:
@@ -71,9 +71,11 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tv-release.jks"
           keytool -list -keystore "$RUNNER_TEMP/tv-release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
           python3 tools/release_properties.py "$RUNNER_TEMP/tv-release.properties"
-          version="3.3.0-scenic.${CHANNEL}.${GITHUB_RUN_NUMBER}"
-          version_code=$((330000 + GITHUB_RUN_NUMBER))
-          tag="v${version}"
+          # Keep the run number in SemVer's numeric core. A numbered suffix
+          # (e.g. beta.13) was sorted lexically on GitHub's Releases page,
+          # placing beta.9 ahead of beta.13 and stable.6 ahead of stable.10.
+          IFS=$'\t' read -r version version_code tag \
+            < <(python3 .github/scripts/release_version.py "$CHANNEL" "$GITHUB_RUN_NUMBER")
           git fetch --tags --force origin
           if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             echo "Release tag already exists: $tag" >&2; exit 1
@@ -164,10 +166,13 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
         run: |
           set -euo pipefail
-          notes='Download the Setup ZIP for the complete CleanYourTV 3.3 toolkit, firmware-aware optimization scripts and Home installer. The standalone APK installs only the launcher. The stock Home stays enabled by default. Debloat requires an exact firmware fingerprint and explicit approval. Check the matching SHA-256 files and keep the rollback records. Scenic visuals and performance must be tested on the target TV before stable release.'
+          notes='Download the Setup ZIP for Cleaner TV Liquid Glass, including the CleanYourTV 3.3 optimization toolkit, firmware-aware scripts and Home installer. The standalone APK installs only the launcher. The stock Home stays enabled by default. Debloat requires an exact firmware fingerprint and explicit approval. Check the matching SHA-256 files and keep the rollback records. Liquid Glass visuals and performance must be tested on the target TV before stable release.'
           args=(release create "$TAG" "release/$APK" "release/$APK.sha256" "release/$ZIP" "release/$ZIP.sha256" \
-            --target "$GITHUB_SHA" --title "CleanYourTV 3.3 + Scenic Glass — $TAG" --notes "$notes")
-          if [ "$CHANNEL" = beta ]; then args+=(--prerelease --latest=false); fi
+            --target "$GITHUB_SHA" --title "Cleaner TV Liquid Glass — $TAG" --notes "$notes")
+          # Beta is identified by the -beta tag, but remains a normal GitHub
+          # Release so publication order is not split by prerelease status.
+          # Never let beta replace the latest approved stable release.
+          if [ "$CHANNEL" = beta ]; then args+=(--latest=false); fi
           gh "${args[@]}"
 
       - name: Remove signing material
