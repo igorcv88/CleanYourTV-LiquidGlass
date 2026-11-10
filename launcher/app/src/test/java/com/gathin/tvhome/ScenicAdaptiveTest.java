@@ -48,4 +48,28 @@ public class ScenicAdaptiveTest {
         assertTrue(!panel.contains("scenic_search") && !panel.contains("scenic_discover") && !panel.contains("scenic_my_space"));
         assertTrue(panel.contains("a.openAppSettings();"));
     }
+
+    private static String read(String name) throws Exception {
+        return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+                "src/main/java/com/gathin/tvhome/" + name)), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    @Test public void homeComesBackOnTheFrameItLeftNotBlack() throws Exception {
+        String aerial = read("AerialBackdrop.java");
+        assertTrue(aerial.contains("if (wasPlaying) capturePoster();"));
+        assertTrue("the keyframe the player resumes from", aerial.contains("MediaMetadataRetriever.OPTION_CLOSEST_SYNC"));
+        assertTrue(aerial.contains("p.seekTo(at, MediaPlayer.SEEK_CLOSEST_SYNC)"));
+        assertTrue("a new flight never shows the old one's frame", aerial.contains("clearPoster();\n        cover.animate().alpha(1f)"));
+    }
+
+    @Test public void overTheCoverBackdropHomeWearsTheCoversColours() throws Exception {
+        assertTrue(read("ScenicHome.java").contains("ribbon.setCoverBackdrop(wantWash);"));
+        assertTrue(read("GlassCurrentView.java").contains("mix[i] = ArtPalette.lerp(scene[i], palette[i], cover);"));
+    }
+
+    @Test public void controlCenterClosesAlongItsOpeningPathMirrored() throws Exception {
+        String cc = read("ControlCenter.java");
+        assertTrue(cc.contains(".setDuration(OPEN_MS)\n                    .setInterpolator(EASE_BACK)"));
+        assertTrue(cc.contains("EASE_BACK = t -> 1f - EASE.getInterpolation(1f - t);"));
+    }
 }

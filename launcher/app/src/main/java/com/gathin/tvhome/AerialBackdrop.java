@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.drawable.GradientDrawable;
+import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
@@ -14,6 +15,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +38,14 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
 
     /** Not final: cycling swaps in the next aerial. */
     private File file;
-    private final View cover;
+    private final ImageView cover;
+    /**
+     * Back from an app, the player is built again and its first frame takes a second or two: the cover then
+     * shows the frame the flight stopped on (a small still, read on the worker when Home went away) instead
+     * of black, and fades into the video at the same keyframe. Scenic only; null until the first pause.
+     */
+    private File posterFor;
+    private int posterGeneration;
     private final View gridDim;
     private final SharedPreferences prefs;
     private MediaPlayer player;
@@ -201,6 +210,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         release();
         prefs.edit().putString(CYCLE_FILE, next.getName()).remove(POSITION).apply();
         cover.animate().cancel();
+        clearPoster();
         cover.animate().alpha(1f).setDuration(300).withEndAction(() -> {
             file = next;
             preparedFor = null;
@@ -254,7 +264,8 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         gridDim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         root.addView(gridDim, index + 3, full);
 
-        cover = new View(context);
+        cover = new ImageView(context);
+        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);   // as the video: scaled to fill, cropped
         cover.setBackgroundColor(coverColor);
         cover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         root.addView(cover, index + 4, full);
@@ -270,6 +281,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
 
     void resume() {
         resumed = true;
+        if (posterFor != null && !posterFor.equals(file)) clearPoster();   // another flight now: black, as before
         start();
     }
 
@@ -290,6 +302,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         externalAudioPlaying = true;
         if (!ScenicAudioPolicy.allowAerial(true, preparedVideoOnly)) {
             release();
+            clearPoster();
             cover.animate().cancel();
             cover.setAlpha(1f);
         } else {
@@ -305,7 +318,9 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     void pause() {
         resumed = false;
         cancelPreparation();
+        boolean wasPlaying = player != null;
         release();
+        if (wasPlaying) capturePoster();
         cover.animate().cancel();
         cover.setAlpha(1f);
     }
@@ -387,6 +402,46 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
             Log.w(TAG, "cannot play " + file, e);
             release();
         }
+    }
+
+    /** The frame the flight stopped on, for the cover while Home comes back: see {@link #cover}. */
+    private void capturePoster() {
+        final File source = preparedFile != null && preparedFile.canRead() ? preparedFile : file;
+        if (!scenic || source == null || android.os.Build.VERSION.SDK_INT < 27) return;
+        final File flight = file;
+        final long atUs = prefs.getInt(POSITION, 0) * 1000L;
+        final int generation = ++posterGeneration;
+        GLASS_WORKER.execute(() -> {
+            Bitmap still = null;
+            MediaMetadataRetriever r = new MediaMetadataRetriever();
+            try {
+                r.setDataSource(source.getPath());
+                // The keyframe the player resumes from (SEEK_CLOSEST_SYNC), small: a second on screen at most.
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    MediaMetadataRetriever.BitmapParams params = new MediaMetadataRetriever.BitmapParams();
+                    params.setPreferredConfig(Bitmap.Config.RGB_565);
+                    still = r.getScaledFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 960, 540, params);
+                } else {
+                    still = r.getScaledFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 960, 540);
+                }
+            } catch (RuntimeException e) {
+                Log.w(TAG, "no resume still for " + flight.getName() + ": " + e);
+            } finally {
+                try { r.release(); } catch (Exception ignored) { /* already released */ }
+            }
+            final Bitmap frame = still;
+            main.post(() -> {
+                if (generation != posterGeneration || frame == null || !flight.equals(file)) return;
+                posterFor = flight;
+                cover.setImageBitmap(frame);
+            });
+        });
+    }
+
+    private void clearPoster() {
+        posterGeneration++;
+        posterFor = null;
+        cover.setImageDrawable(null);
     }
 
     private void release() {

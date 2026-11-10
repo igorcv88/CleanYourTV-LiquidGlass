@@ -63,6 +63,12 @@ final class ControlCenter {
     static final int TOP_DP = 100;
     static final float FOCUS_SCALE = 1.04f;
     private static final Interpolator EASE = new PathInterpolator(0.2f, 0.9f, 0.3f, 1f);
+    /**
+     * The opening played backwards in time, for closing. Closing with EASE itself left the sheet's last tenth
+     * of opacity lingering for a third of the fade: the frost at 5-15% read as a grey ghost over the video.
+     */
+    private static final Interpolator EASE_BACK = t -> 1f - EASE.getInterpolation(1f - t);
+    private static final long OPEN_MS = 320L;
     private static final int TEXT = 0xFFF5F6F8, DIM = 0xB3F5F6F8, FAINT = 0x8CF5F6F8;
 
     private final Context ctx;
@@ -381,7 +387,7 @@ final class ControlCenter {
                 card.setTranslationY(-dp(8));
             }
             // Starts from whatever is on screen, so reopening mid-close reverses smoothly.
-            card.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(320)
+            card.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(OPEN_MS)
                     .setInterpolator(EASE).withLayer().start();
         }
         // Only if still open: a Back before this runs has already handed focus back to Home.
@@ -403,8 +409,9 @@ final class ControlCenter {
             card.animate().alpha(0f).setDuration(100)
                     .withEndAction(this::hideIfClosed).start();
         } else {
-            card.animate().alpha(0f).scaleX(0.96f).scaleY(0.96f).translationY(-dp(6)).setDuration(200)
-                    .setInterpolator(EASE).withLayer().withEndAction(this::hideIfClosed).start();
+            // The same path and length as the opening, mirrored: back up into the button's corner.
+            card.animate().alpha(0f).scaleX(0.94f).scaleY(0.94f).translationY(-dp(8)).setDuration(OPEN_MS)
+                    .setInterpolator(EASE_BACK).withLayer().withEndAction(this::hideIfClosed).start();
         }
     }
 
