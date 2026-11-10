@@ -158,9 +158,9 @@ public class ScenicContractTest {
             n++;
             assertTrue("openScreen without a reopen action: " + m.group(), m.group(1).contains(","));
         }
-        // The retired photo-collection screens were removed; the remaining settings/search
-        // hierarchy must still register its reopen actions.
-        assertTrue(n >= 12);
+        // The retired photo-collection, Search, Discover and My Space screens were removed; the remaining
+        // settings hierarchy must still register its reopen actions.
+        assertTrue(n >= 8);
     }
 
     // ---- progress line -------------------------------------------------------------------------
