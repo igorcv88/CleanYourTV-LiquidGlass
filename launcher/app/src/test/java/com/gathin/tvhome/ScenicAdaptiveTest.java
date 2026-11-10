@@ -56,7 +56,10 @@ public class ScenicAdaptiveTest {
 
     @Test public void homeComesBackOnTheFrameItLeftNotBlack() throws Exception {
         String aerial = read("AerialBackdrop.java");
-        assertTrue(aerial.contains("if (wasPlaying) capturePoster();"));
+        assertTrue("the still is copied from the screen, not decoded while an app holds the decoder",
+                aerial.contains("PixelCopy.request(video, target, result -> {"));
+        assertTrue("the player outlives the copy, never Home's absence", aerial.contains("main.postDelayed(releaseLate, POSTER_COPY_TIMEOUT_MS);"));
+        assertTrue("decoding stays as the fallback", aerial.contains("if (playing != null) capturePoster();"));
         assertTrue("the keyframe the player resumes from", aerial.contains("MediaMetadataRetriever.OPTION_CLOSEST_SYNC"));
         assertTrue(aerial.contains("p.seekTo(at, MediaPlayer.SEEK_CLOSEST_SYNC)"));
         assertTrue("a new flight never shows the old one's frame", aerial.contains("clearPoster();\n        cover.animate().alpha(1f)"));
