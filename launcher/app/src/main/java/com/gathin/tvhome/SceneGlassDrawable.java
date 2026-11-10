@@ -8,6 +8,7 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
+import android.os.SystemClock;
 import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
@@ -47,7 +48,9 @@ final class SceneGlassDrawable extends Drawable {
      * only by its refraction (a frosted-looking middle inside a clear rim read as two materials). Focus lifts
      * the glass itself, brighter and richer, never a veil.
      */
-    private static final ColorFilter BODY = filter(1.12f, 1.08f), BODY_FOCUSED = filter(1.3f, 1.24f);
+    // Saturation well above 1, as Apple's materials: a wide blur averages unlike hues (blue sky, brown cliff)
+    // into grey, which read as a grey veil in the middle of the glass; the boost gives their colour back.
+    private static final ColorFilter BODY = filter(1.45f, 1.1f), BODY_FOCUSED = filter(1.65f, 1.26f);
     private static final ColorFilter LENS = BODY, LENS_FOCUSED = BODY_FOCUSED;
 
     private static ColorFilter filter(float saturation, float brightness) {
@@ -64,6 +67,10 @@ final class SceneGlassDrawable extends Drawable {
     private final GlassTone.Kind kind;
     private final float density;
     private final Paint scene = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    /** A big panel's previous wide frost, under the latest one while it fades in. */
+    private final Paint previous = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Matrix previousMatrix = new Matrix();
+    private Bitmap previousBitmap;
     private final Paint lens = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint tint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sheen = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -114,6 +121,14 @@ final class SceneGlassDrawable extends Drawable {
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeWidth(Math.max(1f, density * 1.2f));
         if (kind.sampleShare > 0f) Scene.register(host);
+    }
+
+    /**
+     * Big panels (Settings, its screens, the rows inside them) draw the wide frost and glide between samples;
+     * controls, the dock and the full-screen backdrop draw the clearer frost as it comes.
+     */
+    private boolean wide() {
+        return kind == GlassTone.Kind.PANEL || kind == GlassTone.Kind.INSET;
     }
 
     GlassTone.Kind kind() {
@@ -179,7 +194,8 @@ final class SceneGlassDrawable extends Drawable {
 
     /** The scene-aligned frost. False when there is nothing sampled yet. */
     private boolean drawSample(Canvas c, float r, float share) {
-        Bitmap bmp = Scene.current();
+        boolean wide = wide();
+        Bitmap bmp = wide ? Scene.currentWide() : Scene.current();
         // Absolute screen alignment also works for PopupWindow panels, whose root view is not fullscreen.
         int screenW = host.getResources().getDisplayMetrics().widthPixels;
         int screenH = host.getResources().getDisplayMetrics().heightPixels;
@@ -189,19 +205,44 @@ final class SceneGlassDrawable extends Drawable {
             lens.setShader(new BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
             shaderBitmap = bmp;
         }
-        float[] cover = SceneCrop.cover(bmp.getWidth(), bmp.getHeight(), screenW, screenH);
         host.getLocationOnScreen(loc);
-        matrix.setScale(cover[0], cover[0]);
-        matrix.postTranslate(cover[1] - loc[0], cover[2] - loc[1]);
-        // The host may be scaled (focus); undo it so the image stays still behind the glass.
-        if (host.getScaleX() != 1f || host.getScaleY() != 1f) {
-            matrix.postScale(1f / host.getScaleX(), 1f / host.getScaleY());
-        }
+        place(bmp, matrix, screenW, screenH);
         scene.getShader().setLocalMatrix(matrix);
         scene.setColorFilter(focused ? BODY_FOCUSED : BODY);
-        scene.setAlpha(Math.round(255 * share * alpha / 255f));
-        c.drawRoundRect(rect, r, r, scene);
+        int body = Math.round(255 * share * alpha / 255f);
+        long now = SystemClock.uptimeMillis();
+        Bitmap before = wide ? Scene.previousWide(now) : null;
+        if (before != null && !before.isRecycled()) {
+            // Between two samples: the previous frost underneath, the latest fading in over it, so the panel
+            // glides with the video instead of stepping; redrawn each frame until the latest is fully in.
+            if (before != previousBitmap) {
+                previous.setShader(new BitmapShader(before, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+                previousBitmap = before;
+            }
+            place(before, previousMatrix, screenW, screenH);
+            previous.getShader().setLocalMatrix(previousMatrix);
+            previous.setColorFilter(scene.getColorFilter());
+            previous.setAlpha(body);
+            c.drawRoundRect(rect, r, r, previous);
+            scene.setAlpha(Math.round(body * Scene.wideFade(now)));
+            c.drawRoundRect(rect, r, r, scene);
+            invalidateSelf();
+        } else {
+            scene.setAlpha(body);
+            c.drawRoundRect(rect, r, r, scene);
+        }
         return true;
+    }
+
+    /** The screen-aligned placement of a scene bitmap behind this host (loc already read). */
+    private void place(Bitmap bmp, Matrix m, int screenW, int screenH) {
+        float[] cover = SceneCrop.cover(bmp.getWidth(), bmp.getHeight(), screenW, screenH);
+        m.setScale(cover[0], cover[0]);
+        m.postTranslate(cover[1] - loc[0], cover[2] - loc[1]);
+        // The host may be scaled (focus); undo it so the image stays still behind the glass.
+        if (host.getScaleX() != 1f || host.getScaleY() != 1f) {
+            m.postScale(1f / host.getScaleX(), 1f / host.getScaleY());
+        }
     }
 
     /** The rim band: the same frost magnified about the centre, so the scenery bends at the edge. */

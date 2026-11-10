@@ -381,8 +381,8 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
             mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
             mp.setOnPreparedListener(p -> {
                 if (player != p) return;
-                int at = prefs.getInt("position", 0);
-                if (at > 0 && at < p.getDuration() - 2000) p.seekTo(at, MediaPlayer.SEEK_CLOSEST_SYNC);
+                int at = resumeAtMs(prefs.getInt(POSITION, 0), p.getDuration());
+                if (at > 0) p.seekTo(at, MediaPlayer.SEEK_CLOSEST_SYNC);
                 p.start();
             });
             mp.setOnInfoListener((p, what, extra) -> {
@@ -409,13 +409,16 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         final File source = preparedFile != null && preparedFile.canRead() ? preparedFile : file;
         if (!scenic || source == null || android.os.Build.VERSION.SDK_INT < 27) return;
         final File flight = file;
-        final long atUs = prefs.getInt(POSITION, 0) * 1000L;
+        final int atMs = prefs.getInt(POSITION, 0);
         final int generation = ++posterGeneration;
         GLASS_WORKER.execute(() -> {
             Bitmap still = null;
             MediaMetadataRetriever r = new MediaMetadataRetriever();
             try {
                 r.setDataSource(source.getPath());
+                // As start() resumes: from the beginning when the flight was in its last two seconds.
+                long durationMs = parseLong(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
+                long atUs = resumeAtMs(atMs, durationMs) * 1000L;
                 // The keyframe the player resumes from (SEEK_CLOSEST_SYNC), small: a second on screen at most.
                 if (android.os.Build.VERSION.SDK_INT >= 30) {
                     MediaMetadataRetriever.BitmapParams params = new MediaMetadataRetriever.BitmapParams();
@@ -436,6 +439,19 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
                 cover.setImageBitmap(frame);
             });
         });
+    }
+
+    /** Where playback resumes: the saved position, or the start when it was within two seconds of the end. */
+    static int resumeAtMs(int savedMs, long durationMs) {
+        return savedMs > 0 && savedMs < durationMs - 2000L ? savedMs : 0;
+    }
+
+    private static long parseLong(String s) {
+        try {
+            return s == null ? 0L : Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     private void clearPoster() {
@@ -511,7 +527,8 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
                     blurMs += android.os.SystemClock.uptimeMillis() - b0;
                     float lum = glassStream.luminance();
                     int[] hues = glassStream.palette();
-                    main.post(() -> glassSampled(frost, lum, hues));
+                    Bitmap wide = glassStream.wide();
+                    main.post(() -> glassSampled(frost, lum, hues, wide));
                 });
             }, main);
         } catch (IllegalArgumentException e) {
@@ -521,10 +538,10 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     }
 
     /** On the main thread: show the new frost and start the next copy, keeping to GLASS_FRAME_MS. */
-    private void glassSampled(Bitmap frost, float lum, int[] hues) {
+    private void glassSampled(Bitmap frost, float lum, int[] hues, Bitmap wide) {
         sampling = false;
         if (!resumed || !scenic || player == null) return;
-        Scene.setStill(frost, lum, hues);
+        Scene.setStill(frost, lum, hues, wide);
         long took = android.os.SystemClock.uptimeMillis() - sampleStarted;
         statTotalMs += took;
         tookAvg = tookAvg < 0f ? took : tookAvg * 0.9f + took * 0.1f;
