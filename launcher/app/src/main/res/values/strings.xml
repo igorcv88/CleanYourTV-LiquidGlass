@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Home</string>
+    <string name="app_name">Cleaner TV Liquid Glass</string>
     <string name="inputs">Inputs</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Settings</string>
@@ -47,7 +47,7 @@
     <string name="vpn">VPN</string>
     <string name="vpn_off">VPN off</string>
     <string name="home_settings">Choose default home</string>
-    <string name="home_settings_help">Select your original home to stop using CleanYourTV as Home, or CleanYourTV to switch back. The original launcher must be enabled and your TV must provide a home picker; use the restore script first if it was disabled.</string>
+    <string name="home_settings_help">Select your original home to stop using Cleaner TV Liquid Glass as Home, or Cleaner TV Liquid Glass to switch back. The original launcher must be enabled and your TV must provide a home picker; use the restore script first if it was disabled.</string>
     <string name="launcher_settings">Launcher settings</string>
     <string name="native_settings">Native settings</string>
     <string name="columns_label">Apps per row</string>
@@ -159,7 +159,7 @@
     <string name="clock_format_12">12-hour</string>
     <string name="clock_format_24">24-hour</string>
 
-    <!-- Appearance picker. Existing CleanYourTV themes remain available unchanged. -->
+    <!-- Appearance picker. Existing Cleaner TV Liquid Glass themes remain available unchanged. -->
     <string name="theme_gallery_title">Aparência · 17 temas</string>
     <string name="theme_gallery_hint">Escolha com as setas do controle e pressione OK. Back volta sem alterar.</string>
     <string name="theme_gallery_active">Em uso</string>
@@ -181,7 +181,7 @@
     <string name="scenic_backup_saved">Backup exported successfully</string>
     <string name="scenic_backup_restored">Settings restored</string>
     <string name="scenic_backup_failed">Could not read or write the backup</string>
-    <string name="scenic_legacy_photos_cleanup">Remove old Scenic photo downloads</string>
+    <string name="scenic_legacy_photos_cleanup">Remove retired photo downloads</string>
     <string name="scenic_legacy_photos_confirm">Remove the retired photo collection downloads (%1$d MiB)? This cannot be undone, but the built-in theme wallpapers are unaffected.</string>
     <string name="scenic_legacy_photos_failed">Some old photo downloads could not be deleted</string>
     <string name="scenic_listen">Listen</string>
@@ -214,7 +214,7 @@
     <string name="background_current">Playing</string>
     <string name="background_cycle">Cycle through all</string>
     <string name="aerials_download">Download aerials…</string>
-    <string name="aerial_dream_name">Scenic aerials</string>
+    <string name="aerial_dream_name">Liquid Glass aerials</string>
     <string name="aerials_loading">Loading Apple\'s aerials…</string>
     <string name="aerials_offline">Couldn\'t reach Apple. Check the TV\'s internet connection.</string>
     <string name="aerials_on_tv">On TV</string>

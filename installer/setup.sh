@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Explicit opt-in installer for a *signed, prebuilt* CleanYourTV 3.3 + Scenic Glass release.
+# Explicit opt-in installer for a *signed, prebuilt* Cleaner TV Liquid Glass release.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

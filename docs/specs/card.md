@@ -73,7 +73,7 @@ A label is rejected when:
   nothing a module declares is ever presented as endorsed (the same two words are refused in the
   caption);
 - it is one of the names the launcher's own UI uses, in English or in the TV's language: what its
-  pills and dialogs say (`Home`, `Settings`, `Inputs`, `Wi-Fi`, `Live TV`, `App library`,
+  pills and dialogs say (`Home`, `Cleaner TV Liquid Glass`, `Settings`, `Inputs`, `Wi-Fi`, `Live TV`, `App library`,
   `Choose default home`), the name of the clock screensaver in the TV's screensaver picker (`Clock`),
   `Default home` word for word, and the two project names `cleanyourtv` and `tv-vibehack`;
 - it names an input the Inputs menu shows: `HDMI` and anything starting with it, `AV`;

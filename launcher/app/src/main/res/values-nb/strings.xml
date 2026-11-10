@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Hjem</string>
+    <string name="app_name">Cleaner TV Liquid Glass</string>
     <string name="inputs">Innganger</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Innstillinger</string>
@@ -27,7 +27,7 @@
     <string name="vpn">VPN</string>
     <string name="vpn_off">VPN er av</string>
     <string name="home_settings">Velg standard startskjerm</string>
-    <string name="home_settings_help">Velg den opprinnelige startskjermen for å slutte å bruke CleanYourTV, eller velg CleanYourTV for å bytte tilbake. Den opprinnelige startskjermen må være aktivert, og TV-en må støtte valg av startskjerm. Kjør tilbakeføringsskriptet først hvis den ble deaktivert.</string>
+    <string name="home_settings_help">Velg den opprinnelige startskjermen for å slutte å bruke Cleaner TV Liquid Glass, eller velg Cleaner TV Liquid Glass for å bytte tilbake. Den opprinnelige startskjermen må være aktivert, og TV-en må støtte valg av startskjerm. Kjør tilbakeføringsskriptet først hvis den ble deaktivert.</string>
     <string name="launcher_settings">Innstillinger for startskjermen</string>
     <string name="native_settings">Produsentinnstillinger</string>
     <string name="columns_label">Apper per rad</string>

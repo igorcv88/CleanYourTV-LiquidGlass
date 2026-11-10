@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Inicio</string>
+    <string name="app_name">Cleaner TV Liquid Glass</string>
     <string name="inputs">Entradas</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Ajustes</string>
@@ -88,7 +88,7 @@
     <string name="vpn">VPN</string>
     <string name="vpn_off">VPN apagada</string>
     <string name="home_settings">Elegir inicio predeterminado</string>
-    <string name="home_settings_help">Elige tu inicio original para dejar de usar CleanYourTV como inicio, o CleanYourTV para volver a él. El lanzador original tiene que estar activado y el televisor debe ofrecer un selector de inicio; si estaba desactivado, usa antes el script de restauración.</string>
+    <string name="home_settings_help">Elige tu inicio original para dejar de usar Cleaner TV Liquid Glass como inicio, o Cleaner TV Liquid Glass para volver a él. El lanzador original tiene que estar activado y el televisor debe ofrecer un selector de inicio; si estaba desactivado, usa antes el script de restauración.</string>
     <string name="rows_below_dock_label">Filas debajo del dock</string>
     <string name="wallpaper_label">Fondo</string>
     <string name="wallpaper_state">Fondo: %1$s</string>

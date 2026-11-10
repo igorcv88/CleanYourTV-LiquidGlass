@@ -1,4 +1,4 @@
-# CleanYourTV 3.3 + Scenic Glass — signed release toolkit
+# Cleaner TV Liquid Glass — signed release toolkit
 
 **Use the complete Setup ZIP** when you want both the Home launcher and all original optimization tools.
 The separate APK installs only the launcher: it does **not** debloat the TV.
@@ -15,7 +15,7 @@ The separate APK installs only the launcher: it does **not** debloat the TV.
 ## GitHub Releases (repository owner)
 
 The publication workflow is `.github/workflows/release.yml` (a separate `pr-ci.yml` validates pull requests).
-Publication runs **only** when the owner chooses **Actions → CleanYourTV Scenic — Publish full Setup release → Run workflow**.
+Publication runs **only** when the owner chooses **Actions → Cleaner TV Liquid Glass — Publish full Setup release → Run workflow**.
 That invocation validates the tools and builds/signs the Android launcher as an internal step,
 then assembles the complete Setup ZIP with the APK inside. The GitHub Release receives four downloads:
 the **Setup ZIP**, its `.sha256`, the optional standalone APK, and its `.sha256`.
