@@ -62,7 +62,9 @@ public class ScenicAdaptiveTest {
         assertTrue("decoding stays as the fallback", aerial.contains("if (playing != null) capturePoster();"));
         assertTrue("the keyframe the player resumes from", aerial.contains("MediaMetadataRetriever.OPTION_CLOSEST_SYNC"));
         assertTrue(aerial.contains("p.seekTo(at, MediaPlayer.SEEK_CLOSEST_SYNC)"));
-        assertTrue("a new flight never shows the old one's frame", aerial.contains("clearPoster();\n        cover.animate().alpha(1f)"));
+        assertTrue("a new flight never shows the old one's frame", aerial.contains("clearPoster();\n        cover.animate().setStartDelay(0).alpha(1f)"));
+        assertTrue("the cover waits for the TV's video plane, not Android's first-frame report",
+                aerial.contains("cover.animate().alpha(0f).setStartDelay(VIDEO_PLANE_MS)"));
     }
 
     @Test public void overTheCoverBackdropHomeWearsTheCoversColours() throws Exception {

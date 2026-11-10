@@ -54,6 +54,8 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     private Bitmap posterCopy;
     /** Release the player at the latest this long after Home leaves, if the copy has not answered. */
     private static final long POSTER_COPY_TIMEOUT_MS = 250L;
+    /** How long the TV's video plane takes to show a frame after Android reports it rendered. */
+    static final long VIDEO_PLANE_MS = 1200L;
     private final View gridDim;
     private final SharedPreferences prefs;
     private MediaPlayer player;
@@ -219,7 +221,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         prefs.edit().putString(CYCLE_FILE, next.getName()).remove(POSITION).apply();
         cover.animate().cancel();
         clearPoster();
-        cover.animate().alpha(1f).setDuration(300).withEndAction(() -> {
+        cover.animate().setStartDelay(0).alpha(1f).setDuration(300).withEndAction(() -> {
             file = next;
             preparedFor = null;
             preparedFile = null;
@@ -294,7 +296,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
             // Back within the copy's moment: the player was never released and its frames still flow, so no
             // first-frame event will lift the cover. Lift it now and restart the frost.
             cover.animate().cancel();
-            cover.animate().alpha(0f).setDuration(200).start();
+            cover.animate().setStartDelay(0).alpha(0f).setDuration(200).start();
             if (scenic) main.postDelayed(refreshGlass, 100);
             return;
         }
@@ -443,9 +445,13 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
             });
             mp.setOnInfoListener((p, what, extra) -> {
                 if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && player == p) {
-                    // Over the still, a slow dissolve into the moving flight; over black (no still), quick:
-                    // measured, the first frame came 0.43 s after Home and a 0.7 s fade from black doubled it.
-                    cover.animate().alpha(0f).setDuration(cover.getDrawable() != null ? 500 : 300).start();
+                    // The TV shows video on its own hardware plane, which comes up about a second after
+                    // Android reports the first frame (screen captures already show the video; the panel
+                    // is still black). Lifting the cover at the report showed that black between the still
+                    // and the flight, so the cover waits for the plane first.
+                    cover.animate().cancel();
+                    cover.animate().alpha(0f).setStartDelay(VIDEO_PLANE_MS)
+                            .setDuration(cover.getDrawable() != null ? 500 : 300).start();
                     if (scenic) main.postDelayed(refreshGlass, 300);
                 }
                 return false;
