@@ -287,11 +287,19 @@ final class ScenicHome implements NowPlaying.Listener {
         dock.addItemDecoration(new RecyclerView.ItemDecoration() {
             @Override
             public void getItemOffsets(@NonNull Rect out, @NonNull View v, @NonNull RecyclerView p, @NonNull RecyclerView.State s) {
-                if (p.getChildAdapterPosition(v) > 0) out.left = gap;
+                int at = p.getChildAdapterPosition(v);
+                if (at > 0) out.left = gap;
+                else if (at == 0) out.left = centringInset(p, tileW, gap);
             }
         });
         dockAdapter = new DockAdapter(tileW, tileH);
         dock.setAdapter(dockAdapter);
+        // A few cards sit centred in the dock; the inset follows the count, so re-measure when it changes.
+        dockAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+            @Override public void onChanged() { dock.invalidateItemDecorations(); }
+            @Override public void onItemRangeInserted(int start, int count) { dock.invalidateItemDecorations(); }
+            @Override public void onItemRangeRemoved(int start, int count) { dock.invalidateItemDecorations(); }
+        });
         dockFrame.addView(dock, full());
         dockFrame.setTranslationZ(0f);
 
@@ -418,6 +426,20 @@ final class ScenicHome implements NowPlaying.Listener {
             weatherView.setText(line);
             weatherView.setVisibility(View.VISIBLE);
         });
+    }
+
+    /**
+     * Space before the dock's first card that centres the row while it fits, as a device's dock does:
+     * none once the cards fill the dock and it scrolls.
+     */
+    static int centringInset(int dockWidth, int padding, int count, int tileW, int gap) {
+        int content = count * tileW + Math.max(0, count - 1) * gap;
+        return Math.max(0, (dockWidth - 2 * padding - content) / 2);
+    }
+
+    private static int centringInset(RecyclerView p, int tileW, int gap) {
+        RecyclerView.Adapter<?> ad = p.getAdapter();
+        return ad == null ? 0 : centringInset(p.getWidth(), p.getPaddingLeft(), ad.getItemCount(), tileW, gap);
     }
 
     /** Home pressed while Home is in front: close everything and focus the first dock item. */
@@ -1487,10 +1509,8 @@ final class ScenicHome implements NowPlaying.Listener {
         if (a.hasInputs()) panelRows.addView(row(a.getString(R.string.scenic_inputs), null, () -> { closePanelNow(); a.showInputsMenu(); }));
         section("Home");
         panelRows.addView(row(a.getString(R.string.scenic_home), null, () -> { closePanelNow(); goHome(); }));
-        panelRows.addView(row(a.getString(R.string.scenic_apps), null, () -> { closePanelNow(); showApps(true, true); }));
-        panelRows.addView(row(a.getString(R.string.scenic_search), null, this::openSearch));
-        panelRows.addView(row(a.getString(R.string.scenic_discover), null, this::openDiscover));
-        panelRows.addView(row(a.getString(R.string.scenic_my_space), null, this::openMySpace));
+        // Apps opens the TV's own app list (uninstall, disable, enable); All Apps is a press of the dock away.
+        panelRows.addView(row(a.getString(R.string.scenic_apps), null, () -> { closePanelNow(); a.openAppSettings(); }));
         section("Look & feel");
         panelRows.addView(row(a.getString(R.string.scenic_wallpapers), null, this::openWallpapers));
         panelRows.addView(row(a.getString(R.string.scenic_appearance), null, this::openAppearance));

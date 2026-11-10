@@ -32,4 +32,20 @@ public class ScenicAdaptiveTest {
         for (int i = 0; i < grey.length; i++) grey[i] = 0xFF808080;
         assertNull(Blur.scenePalette(grey));
     }
+
+    @Test public void aShortDockIsCentredAndAFullOneIsNot() {
+        // 1824 px dock, 36 px padding, 288 px cards, 32 px gaps: five cards leave 1752-1568 = 184 px, 92 a side.
+        assertEquals(92, ScenicHome.centringInset(1824, 36, 5, 288, 32));
+        assertEquals(0, ScenicHome.centringInset(1824, 36, 12, 288, 32));
+        assertEquals((1752 - 288) / 2, ScenicHome.centringInset(1824, 36, 1, 288, 32));
+    }
+
+    @Test public void settingsDropsSearchDiscoverAndMySpaceAndAppsOpensTheTvAppList() throws Exception {
+        String home = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(
+                "src/main/java/com/gathin/tvhome/ScenicHome.java")), java.nio.charset.StandardCharsets.UTF_8);
+        int from = home.indexOf("private void fillPanel()"), to = home.indexOf("section(\"Look & feel\");", from);
+        String panel = home.substring(from, to);
+        assertTrue(!panel.contains("scenic_search") && !panel.contains("scenic_discover") && !panel.contains("scenic_my_space"));
+        assertTrue(panel.contains("a.openAppSettings();"));
+    }
 }
