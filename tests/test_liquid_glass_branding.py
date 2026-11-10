@@ -48,9 +48,9 @@ class LiquidGlassBrandingTest(unittest.TestCase):
         self.assertIn('"scenic_home": true', theme)
         self.assertIn('"scenic_home"', prefs)
 
-    def test_manual_workflow_name_matches_brand(self):
-        workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-        self.assertIn("name: Cleaner TV Liquid Glass — Publish full Setup release", workflow)
+    def test_installer_docs_use_visible_project_brand(self):
+        docs = (ROOT / "installer/README.md").read_text(encoding="utf-8")
+        self.assertIn("# Cleaner TV Liquid Glass — signed release toolkit", docs)
 
 
 if __name__ == "__main__":
