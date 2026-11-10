@@ -77,8 +77,8 @@ public class ScenicAdaptiveTest {
         float controls = Blur.screenSigma(Blur.MOTION_SIDE, Blur.MOTION_RADIUS, 3, 1920);
         float extra = Blur.screenSigma(Blur.MOTION_SIDE / 2, Blur.WIDE_RADIUS, 3, 1920);
         float panels = (float) Math.sqrt(controls * controls + extra * extra);
-        assertTrue("controls " + controls, controls >= 45f && controls <= 56f);
-        assertTrue("panels " + panels, panels >= 75f && panels <= 100f);
+        assertTrue("controls " + controls, controls >= 60f && controls <= 72f);
+        assertTrue("panels " + panels, panels >= 95f && panels <= 125f);
     }
 
     @Test public void halvingAveragesEachBlock() {

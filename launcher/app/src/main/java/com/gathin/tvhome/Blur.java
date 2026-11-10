@@ -16,33 +16,33 @@ final class Blur {
     private Blur() { }
 
     /**
-     * Scenic Glass's frost: 320 px across a 1920 px screen with three radius-8 box passes, a gaussian of about
-     * 51 screen pixels: colour and light come through the glass, detail does not, and the 6x stretch back to
-     * the screen never shows a pixel. Wider (~63 px) greyed small controls: over a bright sky beside a dark
-     * cliff their middle mixed both, darker and greyer than their rim. Big panels use {@link #WIDE_RADIUS}. A box pass costs the same at any
+     * Scenic Glass's frost: 320 px across a 1920 px screen with three radius-10 box passes, a gaussian of
+     * about 63 screen pixels: colour and light come through the glass, detail does not, and the 6x stretch
+     * back to the screen never shows a pixel. Wide frost greys unlike hues together (sky and cliff); the
+     * glass's saturation boost (SceneGlassDrawable.BODY) gives them back. Big panels use {@link #WIDE_RADIUS}. A box pass costs the same at any
      * radius. The old 96 px / radius 4 sample (~90 px) was a featureless smear that read as milk.
      */
-    static final int GLASS_SIDE = 320, GLASS_RADIUS = 8;
+    static final int GLASS_SIDE = 320, GLASS_RADIUS = 10;
 
     /**
-     * The aerial's moving frost, sampled many times a second: 240 px with radius 6, about 51 screen pixels,
-     * matching the still frost. It is copied from the video at twice this size and halved with filtering:
+     * The aerial's moving frost, sampled many times a second: 240 px with radius 8, about 68 screen pixels,
+     * matching the still frost: at ~51 px a river's bank still showed sharp in a panel's middle. It is copied from the video at twice this size and halved with filtering:
      * a copy straight at this size point-samples the video, which showed as sharp, pixelated detail.
      */
-    static final int MOTION_SIDE = 240, MOTION_RADIUS = 6;
+    static final int MOTION_SIDE = 240, MOTION_RADIUS = 8;
 
     /**
      * The aerial's frost while music plays over it: a smaller sample (about 2.3x cheaper to blur, and a smaller
-     * copy), blurred wider (~66 px) so its lower resolution never shows. Same rate: only quality is traded.
+     * copy), blurred wider (~78 px) so its lower resolution never shows. Same rate: only quality is traded.
      */
-    static final int MUSIC_SIDE = 160, MUSIC_RADIUS = 5;
+    static final int MUSIC_SIDE = 160, MUSIC_RADIUS = 6;
 
     /**
      * Big panels (Settings and its screens) take the frost once more, halved and blurred again with this
-     * radius: about 84 screen pixels in all, so a fast subject behind a wide panel reads as moving colour,
+     * radius: about 110 screen pixels in all, so a fast subject behind a wide panel reads as moving colour,
      * not a shape trailing the video. Small controls keep the clearer frost above.
      */
-    static final int WIDE_RADIUS = 4;
+    static final int WIDE_RADIUS = 5;
 
     /** The scene sample every glass surface draws: see {@link #GLASS_SIDE}. */
     static Bitmap glass(Bitmap src) {

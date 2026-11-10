@@ -8,7 +8,6 @@ import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
-import android.os.SystemClock;
 import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
@@ -67,10 +66,6 @@ final class SceneGlassDrawable extends Drawable {
     private final GlassTone.Kind kind;
     private final float density;
     private final Paint scene = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    /** A big panel's previous wide frost, under the latest one while it fades in. */
-    private final Paint previous = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private final Matrix previousMatrix = new Matrix();
-    private Bitmap previousBitmap;
     private final Paint lens = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint tint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sheen = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -83,7 +78,9 @@ final class SceneGlassDrawable extends Drawable {
     /** A control's own patch of the scene: its mean luminance, and whether its ink is dark (GlassContent). */
     private Bitmap lumBitmap;
     private int lumX = Integer.MIN_VALUE, lumY;
-    private boolean lumFocused, light;
+    private GlassContent.Group inkGroup;
+    /** This control's share of its row's light decision, -1 until measured. */
+    float inkLuminance = -1f;
     private float coverS = 1f, coverX, coverY;
     private int alpha = 255;
     private boolean focused, selected;
@@ -129,8 +126,9 @@ final class SceneGlassDrawable extends Drawable {
     }
 
     /**
-     * Big panels (Settings, its screens, the rows inside them) draw the wide frost and glide between samples;
-     * controls, the dock and the full-screen backdrop draw the clearer frost as it comes.
+     * Big panels (Settings, its screens, the rows inside them) draw the wide frost; controls, the dock and the
+     * full-screen backdrop the clearer one. No cross-fade between samples: redrawing a big panel every frame
+     * cost these GPUs more than the stepping it hid, and the whole screen stuttered.
      */
     private boolean wide() {
         return kind == GlassTone.Kind.PANEL || kind == GlassTone.Kind.INSET;
@@ -215,28 +213,8 @@ final class SceneGlassDrawable extends Drawable {
         if (kind == GlassTone.Kind.CONTROL) followLight(bmp);
         scene.getShader().setLocalMatrix(matrix);
         scene.setColorFilter(focused ? BODY_FOCUSED : BODY);
-        int body = Math.round(255 * share * alpha / 255f);
-        long now = SystemClock.uptimeMillis();
-        Bitmap before = wide ? Scene.previousWide(now) : null;
-        if (before != null && !before.isRecycled()) {
-            // Between two samples: the previous frost underneath, the latest fading in over it, so the panel
-            // glides with the video instead of stepping; redrawn each frame until the latest is fully in.
-            if (before != previousBitmap) {
-                previous.setShader(new BitmapShader(before, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
-                previousBitmap = before;
-            }
-            place(before, previousMatrix, screenW, screenH);
-            previous.getShader().setLocalMatrix(previousMatrix);
-            previous.setColorFilter(scene.getColorFilter());
-            previous.setAlpha(body);
-            c.drawRoundRect(rect, r, r, previous);
-            scene.setAlpha(Math.round(body * Scene.wideFade(now)));
-            c.drawRoundRect(rect, r, r, scene);
-            invalidateSelf();
-        } else {
-            scene.setAlpha(body);
-            c.drawRoundRect(rect, r, r, scene);
-        }
+        scene.setAlpha(Math.round(255 * share * alpha / 255f));
+        c.drawRoundRect(rect, r, r, scene);
         return true;
     }
 
@@ -260,12 +238,11 @@ final class SceneGlassDrawable extends Drawable {
      * inks its labels and icons dark over a bright patch (see {@link GlassContent}).
      */
     private void followLight(Bitmap bmp) {
-        if (bmp == lumBitmap && loc[0] == lumX && loc[1] == lumY && focused == lumFocused) return;
+        if (bmp == lumBitmap && loc[0] == lumX && loc[1] == lumY) return;
         if (bmp.getConfig() == Bitmap.Config.HARDWARE) return;
         lumBitmap = bmp;
         lumX = loc[0];
         lumY = loc[1];
-        lumFocused = focused;
         int bw = bmp.getWidth(), bh = bmp.getHeight();
         float sum = 0f;
         for (int gy = 0; gy < 3; gy++) {
@@ -278,13 +255,14 @@ final class SceneGlassDrawable extends Drawable {
                 sum += (0.2126f * ((p >> 16) & 0xFF) + 0.7152f * ((p >> 8) & 0xFF) + 0.0722f * (p & 0xFF)) / 255f;
             }
         }
-        // As drawn: the colour filter's brightness lifts the glass, more so when focused.
-        float lum = sum / 15f * (focused ? 1.26f : 1.1f);
-        boolean next = GlassContent.nextLight(light, lum);
-        if (next == light) return;
-        light = next;
-        final boolean ink = next;
-        host.post(() -> GlassContent.apply(host, ink));   // never change views from inside a draw
+        // As drawn at rest (the colour filter's brightness). Focus does not move the decision: a row's
+        // buttons keep one ink whichever of them is focused.
+        if (inkGroup == null) inkGroup = GlassContent.groupFor(host);
+        inkGroup.report(this, sum / 15f * 1.1f);
+    }
+
+    View host() {
+        return host;
     }
 
     /**
