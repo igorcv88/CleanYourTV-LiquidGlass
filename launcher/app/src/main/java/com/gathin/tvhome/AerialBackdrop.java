@@ -46,6 +46,14 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
      */
     private File posterFor;
     private int posterGeneration;
+    /**
+     * The still is copied from the screen as Home leaves (PixelCopy, the frost's own path), not decoded from
+     * the file: by then the app being opened holds the TV's video decoder, and a decode of the file either
+     * failed or finished too late, so Home still came back black. One reused bitmap, a quarter of the screen.
+     */
+    private Bitmap posterCopy;
+    /** Release the player at the latest this long after Home leaves, if the copy has not answered. */
+    private static final long POSTER_COPY_TIMEOUT_MS = 250L;
     private final View gridDim;
     private final SharedPreferences prefs;
     private MediaPlayer player;
@@ -282,6 +290,14 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     void resume() {
         resumed = true;
         if (posterFor != null && !posterFor.equals(file)) clearPoster();   // another flight now: black, as before
+        if (player != null) {
+            // Back within the copy's moment: the player was never released and its frames still flow, so no
+            // first-frame event will lift the cover. Lift it now and restart the frost.
+            cover.animate().cancel();
+            cover.animate().alpha(0f).setDuration(200).start();
+            if (scenic) main.postDelayed(refreshGlass, 100);
+            return;
+        }
         start();
     }
 
@@ -318,11 +334,51 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     void pause() {
         resumed = false;
         cancelPreparation();
-        boolean wasPlaying = player != null;
-        release();
-        if (wasPlaying) capturePoster();
+        final MediaPlayer playing = player;
+        if (playing == null || !copyPoster(playing)) {
+            release();
+            if (playing != null) capturePoster();   // no copy possible: decode the still from the file
+        }
         cover.animate().cancel();
         cover.setAlpha(1f);
+    }
+
+    /**
+     * Copies the flight's current frame for the cover, then releases the player (the copy needs its last
+     * frame on the surface). False when no copy can start; the caller then releases at once.
+     */
+    private boolean copyPoster(MediaPlayer playing) {
+        if (!scenic || surface == null || video == null || video.getWidth() == 0 || video.getHeight() == 0) return false;
+        int w = Math.max(32, video.getWidth() / 2), h = Math.max(18, video.getHeight() / 2);
+        if (posterCopy == null || posterCopy.getWidth() != w || posterCopy.getHeight() != h) {
+            try {
+                posterCopy = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            } catch (OutOfMemoryError e) {
+                return false;
+            }
+        }
+        final Bitmap target = posterCopy;
+        final File flight = file;
+        final int generation = ++posterGeneration;
+        final Runnable releaseLate = () -> { if (!resumed && player == playing) release(); };
+        try {
+            PixelCopy.request(video, target, result -> {
+                main.removeCallbacks(releaseLate);
+                releaseLate.run();
+                if (generation != posterGeneration) return;
+                if (result == PixelCopy.SUCCESS && flight.equals(file)) {
+                    posterFor = flight;
+                    cover.setImageDrawable(null);   // the same bitmap again: make the view take its new pixels
+                    cover.setImageBitmap(target);
+                } else if (!resumed) {
+                    capturePoster();
+                }
+            }, main);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        main.postDelayed(releaseLate, POSTER_COPY_TIMEOUT_MS);
+        return true;
     }
 
     /** Stop disk activity as soon as Home goes away; restart only after a new resume/surface. */
