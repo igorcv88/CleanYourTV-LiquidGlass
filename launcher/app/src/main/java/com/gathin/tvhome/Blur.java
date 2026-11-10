@@ -16,26 +16,33 @@ final class Blur {
     private Blur() { }
 
     /**
-     * Scenic Glass's frost: 320 px across a 1920 px screen with three radius-10 box passes, a gaussian of about
-     * 63 screen pixels: colour and light come through the glass, detail does not (at ~50 px the big panels
-     * still showed shapes moving behind them), and the 6x stretch back to the screen never shows a pixel. A box pass costs the same at any
+     * Scenic Glass's frost: 320 px across a 1920 px screen with three radius-8 box passes, a gaussian of about
+     * 51 screen pixels: colour and light come through the glass, detail does not, and the 6x stretch back to
+     * the screen never shows a pixel. Wider (~63 px) greyed small controls: over a bright sky beside a dark
+     * cliff their middle mixed both, darker and greyer than their rim. Big panels use {@link #WIDE_RADIUS}. A box pass costs the same at any
      * radius. The old 96 px / radius 4 sample (~90 px) was a featureless smear that read as milk.
      */
-    static final int GLASS_SIDE = 320, GLASS_RADIUS = 10;
+    static final int GLASS_SIDE = 320, GLASS_RADIUS = 8;
 
     /**
-     * The aerial's moving frost, sampled many times a second: 240 px with radius 7, about 60 screen pixels,
-     * matching the still frost; wide enough that a fast subject behind a panel reads as moving colour, so the
-     * frame or two the frost trails the video does not show as a shape lagging behind. It is copied from the video at twice this size and halved with filtering:
+     * The aerial's moving frost, sampled many times a second: 240 px with radius 6, about 51 screen pixels,
+     * matching the still frost. It is copied from the video at twice this size and halved with filtering:
      * a copy straight at this size point-samples the video, which showed as sharp, pixelated detail.
      */
-    static final int MOTION_SIDE = 240, MOTION_RADIUS = 7;
+    static final int MOTION_SIDE = 240, MOTION_RADIUS = 6;
 
     /**
      * The aerial's frost while music plays over it: a smaller sample (about 2.3x cheaper to blur, and a smaller
-     * copy), blurred wider (~78 px) so its lower resolution never shows. Same rate: only quality is traded.
+     * copy), blurred wider (~66 px) so its lower resolution never shows. Same rate: only quality is traded.
      */
-    static final int MUSIC_SIDE = 160, MUSIC_RADIUS = 6;
+    static final int MUSIC_SIDE = 160, MUSIC_RADIUS = 5;
+
+    /**
+     * Big panels (Settings and its screens) take the frost once more, halved and blurred again with this
+     * radius: about 84 screen pixels in all, so a fast subject behind a wide panel reads as moving colour,
+     * not a shape trailing the video. Small controls keep the clearer frost above.
+     */
+    static final int WIDE_RADIUS = 4;
 
     /** The scene sample every glass surface draws: see {@link #GLASS_SIDE}. */
     static Bitmap glass(Bitmap src) {
@@ -105,6 +112,27 @@ final class Blur {
         return java.util.Arrays.equals(p, ArtPalette.DEFAULT) ? null : p;
     }
 
+    /** Each output pixel the mean of a 2x2 block of src (opaque ARGB). */
+    static void halve(int[] src, int sw, int sh, int[] dst, int dw, int dh) {
+        for (int y = 0; y < dh; y++) {
+            int y0 = Math.min(sh - 1, y * 2) * sw, y1 = Math.min(sh - 1, y * 2 + 1) * sw;
+            for (int x = 0; x < dw; x++) {
+                int x0 = Math.min(sw - 1, x * 2), x1 = Math.min(sw - 1, x * 2 + 1);
+                int a = src[y0 + x0], b = src[y0 + x1], c = src[y1 + x0], d = src[y1 + x1];
+                int r = (((a >> 16) & 0xFF) + ((b >> 16) & 0xFF) + ((c >> 16) & 0xFF) + ((d >> 16) & 0xFF) + 2) >> 2;
+                int g = (((a >> 8) & 0xFF) + ((b >> 8) & 0xFF) + ((c >> 8) & 0xFF) + ((d >> 8) & 0xFF) + 2) >> 2;
+                int bl = ((a & 0xFF) + (b & 0xFF) + (c & 0xFF) + (d & 0xFF) + 2) >> 2;
+                dst[y * dw + x] = 0xFF000000 | (r << 16) | (g << 8) | bl;
+            }
+        }
+    }
+
+    /** The wide frost of a still scene (wallpaper): once per scene, never per frame. */
+    static Bitmap wide(Bitmap frost) {
+        int w = frost.getWidth(), h = frost.getHeight();
+        return blurred(frost, Math.max(2, Math.max(w, h) / 2), WIDE_RADIUS);
+    }
+
     private static int index(int line, int i, int w, boolean horizontal) {
         return horizontal ? line * w + i : i * w + line;
     }
@@ -125,6 +153,11 @@ final class Blur {
         private int frames;
         private int[] sparse;
         private volatile int[] palette;
+        /** The wide frost: three bitmaps in turn, as a panel cross-fades from the previous one to the latest. */
+        private final Bitmap[] wide = new Bitmap[3];
+        private int[] widePx, wideTmp;
+        private int wideNext;
+        private Bitmap wideLast;
 
         /** The blurred frame (one of two bitmaps, alternating); src untouched. */
         Bitmap blur(Bitmap src, int maxSide, int radius) {
@@ -156,8 +189,32 @@ final class Blur {
             dst.setPixels(px, 0, sw, 0, 0, sw, sh);
             luminance = GlassTone.meanLuminance(px);
             if (frames++ % PALETTE_EVERY == 0) palette = scenePalette(px);
+            makeWide(px, sw, sh);
             next = 1 - next;
             return dst;
+        }
+
+        private void makeWide(int[] px, int sw, int sh) {
+            int ww = Math.max(2, sw / 2), wh = Math.max(2, sh / 2);
+            Bitmap out = wide[wideNext];
+            if (out == null || out.getWidth() != ww || out.getHeight() != wh) {
+                out = Bitmap.createBitmap(ww, wh, Bitmap.Config.ARGB_8888);
+                wide[wideNext] = out;
+            }
+            if (widePx == null || widePx.length != ww * wh) {
+                widePx = new int[ww * wh];
+                wideTmp = new int[ww * wh];
+            }
+            halve(px, sw, sh, widePx, ww, wh);
+            boxBlur(widePx, wideTmp, ww, wh, WIDE_RADIUS);
+            out.setPixels(widePx, 0, ww, 0, 0, ww, wh);
+            wideLast = out;
+            wideNext = (wideNext + 1) % wide.length;
+        }
+
+        /** The last wide frost made: see {@link #WIDE_RADIUS}. */
+        Bitmap wide() {
+            return wideLast;
         }
 
         private int[] scenePalette(int[] all) {

@@ -244,7 +244,7 @@ public class ScenicContractTest {
         String audio = body(aerial, "void setExternalAudioPlaying(boolean playing)");
         assertContains("paused reports never restart the end grace", audio, "if (externalAudioPlaying && !musicEndPending) {");
         assertContains("opt-in, off by default", src("ScenicHome.java"), "getBoolean(MUSIC_FROST_KEY, false)");
-        assertContains("luminance measured off the UI thread", done, "Scene.setStill(frost, lum, hues);");
+        assertContains("luminance measured off the UI thread", done, "Scene.setStill(frost, lum, hues, wide);");
     }
 
     @Test public void focusIsGlassNeverAWhiteFill() {

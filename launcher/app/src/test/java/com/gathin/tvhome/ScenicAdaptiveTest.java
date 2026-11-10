@@ -72,4 +72,25 @@ public class ScenicAdaptiveTest {
         assertTrue(cc.contains(".setDuration(OPEN_MS)\n                    .setInterpolator(EASE_BACK)"));
         assertTrue(cc.contains("EASE_BACK = t -> 1f - EASE.getInterpolation(1f - t);"));
     }
+
+    @Test public void bigPanelsGetAWiderFrostThanControls() {
+        float controls = Blur.screenSigma(Blur.MOTION_SIDE, Blur.MOTION_RADIUS, 3, 1920);
+        float extra = Blur.screenSigma(Blur.MOTION_SIDE / 2, Blur.WIDE_RADIUS, 3, 1920);
+        float panels = (float) Math.sqrt(controls * controls + extra * extra);
+        assertTrue("controls " + controls, controls >= 45f && controls <= 56f);
+        assertTrue("panels " + panels, panels >= 75f && panels <= 100f);
+    }
+
+    @Test public void halvingAveragesEachBlock() {
+        int[] src = {0xFF000000, 0xFFFFFFFF, 0xFF000000, 0xFFFFFFFF};
+        int[] dst = new int[1];
+        Blur.halve(src, 2, 2, dst, 1, 1);
+        assertEquals(0xFF808080, dst[0]);
+    }
+
+    @Test public void aFlightNearItsEndResumesFromTheStartAndSoDoesItsStill() {
+        assertEquals(5000, AerialBackdrop.resumeAtMs(5000, 60000));
+        assertEquals(0, AerialBackdrop.resumeAtMs(59000, 60000));
+        assertEquals(0, AerialBackdrop.resumeAtMs(0, 60000));
+    }
 }

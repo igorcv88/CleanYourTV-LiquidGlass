@@ -18,6 +18,13 @@ final class Scene {
     private Scene() { }
 
     private static Bitmap still, music;
+    /**
+     * The wide frost big panels draw ({@link Blur#WIDE_RADIUS}), and the one before it: a panel cross-fades
+     * between the two over the time samples arrive apart, so it moves smoothly instead of stepping 15 times
+     * a second.
+     */
+    private static Bitmap wide, widePrev;
+    private static long wideAt, wideSpan = 1L;
     private static float stillLum = GlassTone.UNKNOWN, musicLum = GlassTone.UNKNOWN;
     private static final List<WeakReference<View>> hosts = new ArrayList<>();
     /** The backdrop's hues (never the album's), or null; Home's progress line takes its colour from them. */
@@ -44,19 +51,48 @@ final class Scene {
         return music != null ? music : still;
     }
 
+    /** What a big panel draws: the album art while music shows it, else the wide frost, else the frost. */
+    static Bitmap currentWide() {
+        return music != null ? music : wide != null ? wide : still;
+    }
+
+    /** The wide frost before {@link #currentWide()} while a cross-fade to it runs, else null. */
+    static Bitmap previousWide(long now) {
+        return music == null && widePrev != null && wide != null && now - wideAt < wideSpan ? widePrev : null;
+    }
+
+    /** How far the cross-fade from {@link #previousWide} has come, 0..1. */
+    static float wideFade(long now) {
+        return Math.max(0f, Math.min(1f, (now - wideAt) / (float) wideSpan));
+    }
+
+    private static void setWide(Bitmap next, boolean fade) {
+        if (next == wide) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        // The fade lasts as long as samples take to arrive, so each lands as the one before completes.
+        wideSpan = Math.max(16L, Math.min(250L, now - wideAt));
+        widePrev = fade ? wide : null;
+        wide = next;
+        wideAt = now;
+    }
+
     /** Mean luminance of {@link #current()}, 0..1, or {@link GlassTone#UNKNOWN}: drives the adaptive tint. */
     static float luminance() {
         return music != null ? musicLum : still != null ? stillLum : GlassTone.UNKNOWN;
     }
 
     static void setStill(Bitmap blurred) {
-        if (blurred != still) setPalette(measurePalette(blurred));
+        if (blurred != still) {
+            setPalette(measurePalette(blurred));
+            setWide(blurred == null || blurred.isRecycled() ? null : Blur.wide(blurred), false);
+        }
         setStill(blurred, blurred == still ? stillLum : measure(blurred));
     }
 
     /** An aerial sample whose hues were read on the worker, a few times a minute at most they change. */
-    static void setStill(Bitmap blurred, float luminance, int[] palette) {
+    static void setStill(Bitmap blurred, float luminance, int[] palette, Bitmap wideFrost) {
         setPalette(palette);
+        setWide(wideFrost, true);
         setStill(blurred, luminance);
     }
 
@@ -118,6 +154,8 @@ final class Scene {
         stillLum = GlassTone.UNKNOWN;
         musicLum = GlassTone.UNKNOWN;
         stillPalette = null;
+        wide = null;
+        widePrev = null;
         paletteListener = null;
         hosts.clear();
     }
