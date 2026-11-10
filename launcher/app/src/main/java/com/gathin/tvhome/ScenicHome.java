@@ -99,6 +99,8 @@ final class ScenicHome implements NowPlaying.Listener {
     private final View header;
     private final TextView weatherView;
     private final View settingsButton;
+    /** The header's Control Center button: Up from the sheet's top row lands here, as on iOS. */
+    private final View quickButton;
     private final FrameLayout dockFrame;
     private final RecyclerView dock;
     private final DockAdapter dockAdapter;
@@ -235,12 +237,16 @@ final class ScenicHome implements NowPlaying.Listener {
         quickLp.setMarginStart(dp(18));
         right.addView(quick, quickLp);
         quick.setOnClickListener(v -> toggleControlCenter());
+        quickButton = quick;
         ImageView gear = roundButton(R.drawable.ic_settings, 48, a.getString(R.string.scenic_settings));
         settingsButton = gear;
         LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(48), dp(48));
         gearLp.setMarginStart(dp(12));
         right.addView(gear, gearLp);
-        gear.setOnClickListener(v -> openPanel());
+        gear.setOnClickListener(v -> {
+            if (controlCenter != null && controlCenter.isOpen()) closeControlCenterNow();
+            openPanel();
+        });
 
         // ---- dock ----
         int screenW = activity.getResources().getDisplayMetrics().widthPixels;
@@ -281,11 +287,19 @@ final class ScenicHome implements NowPlaying.Listener {
         dock.addItemDecoration(new RecyclerView.ItemDecoration() {
             @Override
             public void getItemOffsets(@NonNull Rect out, @NonNull View v, @NonNull RecyclerView p, @NonNull RecyclerView.State s) {
-                if (p.getChildAdapterPosition(v) > 0) out.left = gap;
+                int at = p.getChildAdapterPosition(v);
+                if (at > 0) out.left = gap;
+                else if (at == 0) out.left = centringInset(p, tileW, gap);
             }
         });
         dockAdapter = new DockAdapter(tileW, tileH);
         dock.setAdapter(dockAdapter);
+        // A few cards sit centred in the dock; the inset follows the count, so re-measure when it changes.
+        dockAdapter.registerAdapterDataObserver(new RecyclerView.AdapterDataObserver() {
+            @Override public void onChanged() { dock.invalidateItemDecorations(); }
+            @Override public void onItemRangeInserted(int start, int count) { dock.invalidateItemDecorations(); }
+            @Override public void onItemRangeRemoved(int start, int count) { dock.invalidateItemDecorations(); }
+        });
         dockFrame.addView(dock, full());
         dockFrame.setTranslationZ(0f);
 
@@ -299,6 +313,9 @@ final class ScenicHome implements NowPlaying.Listener {
         ribbon.setVisibility(View.GONE);
         ribbon.setSeekListener(this::seekBy);
         ribbon.setMotionEnabled(!reducedMotion);
+        // On Home the line takes the backdrop's colours (the aerial or wallpaper behind it); Listen, the cover's.
+        Scene.setPaletteListener(() -> ribbon.setScenePalette(Scene.palette()));
+        ribbon.setScenePalette(Scene.palette());
 
         // ---- now playing group, above the ribbon ----
         nowGroup = new LinearLayout(activity);
@@ -409,6 +426,20 @@ final class ScenicHome implements NowPlaying.Listener {
             weatherView.setText(line);
             weatherView.setVisibility(View.VISIBLE);
         });
+    }
+
+    /**
+     * Space before the dock's first card that centres the row while it fits, as a device's dock does:
+     * none once the cards fill the dock and it scrolls.
+     */
+    static int centringInset(int dockWidth, int padding, int count, int tileW, int gap) {
+        int content = count * tileW + Math.max(0, count - 1) * gap;
+        return Math.max(0, (dockWidth - 2 * padding - content) / 2);
+    }
+
+    private static int centringInset(RecyclerView p, int tileW, int gap) {
+        RecyclerView.Adapter<?> ad = p.getAdapter();
+        return ad == null ? 0 : centringInset(p.getWidth(), p.getPaddingLeft(), ad.getItemCount(), tileW, gap);
     }
 
     /** Home pressed while Home is in front: close everything and focus the first dock item. */
@@ -853,12 +884,22 @@ final class ScenicHome implements NowPlaying.Listener {
         if (listening) return listenKey(f, code);
         if (controlCenter != null && controlCenter.isOpen()) {
             if (!isDpad(code)) return false;
+            if (f == quickButton || f == settingsButton) {
+                // The header's two buttons stay reachable above the open sheet: Left/Right between them,
+                // Down back into the sheet, Up stays.
+                if (code == KeyEvent.KEYCODE_DPAD_LEFT) quickButton.requestFocus();
+                else if (code == KeyEvent.KEYCODE_DPAD_RIGHT) settingsButton.requestFocus();
+                else if (code == KeyEvent.KEYCODE_DPAD_DOWN) controlCenter.focusFirst();
+                return true;
+            }
             if (f == null || !controlCenter.contains(f)) {   // focus was lost mid-animation: bring it back
                 controlCenter.focusFirst();
                 return true;
             }
             View next = f.focusSearch(direction(code));
-            return next == null || !controlCenter.contains(next);
+            if (next != null && controlCenter.contains(next)) return false;
+            if (code == KeyEvent.KEYCODE_DPAD_UP) quickButton.requestFocus();   // top row: up to the button
+            return true;
         }
         boolean screenOpen = screen.getVisibility() == View.VISIBLE && screens.depth() > 0;
         if (panel.getVisibility() == View.VISIBLE || screenOpen) {
@@ -883,8 +924,11 @@ final class ScenicHome implements NowPlaying.Listener {
         // Moving a dock card: Left/Right move it (the card's key listener), Up/Down stay put.
         if (movingPkg != null && row == ROW_DOCK && (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN)) return true;
         if (appsShown) {
+            // Up out of the grid's first row reaches the dock, and the dock means Home: close All Apps
+            // on the way rather than stopping on the raised shelf for one more press.
             if (code == KeyEvent.KEYCODE_DPAD_UP && row == ROW_NONE && a.focusedGridIsFirstRow()) {
-                focusDock(lastDockPos);
+                showApps(false, false);
+                handler.post(() -> focusDock(lastDockPos));
                 return true;
             }
             if (row == ROW_DOCK && code == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -1465,10 +1509,8 @@ final class ScenicHome implements NowPlaying.Listener {
         if (a.hasInputs()) panelRows.addView(row(a.getString(R.string.scenic_inputs), null, () -> { closePanelNow(); a.showInputsMenu(); }));
         section("Home");
         panelRows.addView(row(a.getString(R.string.scenic_home), null, () -> { closePanelNow(); goHome(); }));
-        panelRows.addView(row(a.getString(R.string.scenic_apps), null, () -> { closePanelNow(); showApps(true, true); }));
-        panelRows.addView(row(a.getString(R.string.scenic_search), null, this::openSearch));
-        panelRows.addView(row(a.getString(R.string.scenic_discover), null, this::openDiscover));
-        panelRows.addView(row(a.getString(R.string.scenic_my_space), null, this::openMySpace));
+        // Apps opens the TV's own app list (uninstall, disable, enable); All Apps is a press of the dock away.
+        panelRows.addView(row(a.getString(R.string.scenic_apps), null, () -> { closePanelNow(); a.openAppSettings(); }));
         section("Look & feel");
         panelRows.addView(row(a.getString(R.string.scenic_wallpapers), null, this::openWallpapers));
         panelRows.addView(row(a.getString(R.string.scenic_appearance), null, this::openAppearance));
@@ -1902,168 +1944,6 @@ final class ScenicHome implements NowPlaying.Listener {
         t.setLetterSpacing(0.12f);
         t.setPadding(dp(16), dp(16), 0, dp(6));
         screenContent.addView(t);
-    }
-
-    // Search: installed apps and My Space titles, typed with the TV keyboard.
-    private void openSearch() {
-        openScreen(a.getString(R.string.scenic_search), this::openSearch);
-        EditText field = field("Apps and saved titles");
-        field.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        screenContent.addView(field, fieldLp());
-        LinearLayout results = new LinearLayout(a);
-        results.setOrientation(LinearLayout.VERTICAL);
-        screenContent.addView(results);
-        List<MySpace.Title> titles = MySpace.load(a);
-        field.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int st, int c, int af) { }
-            @Override public void onTextChanged(CharSequence s, int st, int b, int c) { }
-            @Override public void afterTextChanged(Editable s) { fillSearch(results, s.toString(), titles); }
-        });
-        fillSearch(results, "", titles);
-        field.requestFocus();
-        showKeyboard(field);
-    }
-
-    private void fillSearch(LinearLayout results, String q, List<MySpace.Title> titles) {
-        results.removeAllViews();
-        String query = q.trim().toLowerCase(java.util.Locale.ROOT);
-        if (query.isEmpty()) return;
-        int n = 0;
-        for (AppAdapter.Entry e : a.allEntries()) {
-            if (!e.label.toLowerCase(java.util.Locale.ROOT).contains(query)) continue;
-            results.addView(appRow(e));
-            if (++n >= 12) break;
-        }
-        for (MySpace.Title t : MySpace.search(titles, query)) results.addView(titleRow(t, false));
-        if (results.getChildCount() == 0) {
-            TextView none = text(16, regular, 0x99F5F6F8);
-            none.setText("Nothing on this TV matches “" + q.trim() + "”.");
-            none.setPadding(dp(16), dp(12), 0, 0);
-            results.addView(none);
-        }
-    }
-
-    // Discover: only what this TV knows: saved titles and recently opened apps. No catalogue is invented.
-    private void openDiscover() {
-        openScreen(a.getString(R.string.scenic_discover), this::openDiscover);
-        List<MySpace.Title> titles = MySpace.load(a);
-        List<AppAdapter.Entry> recent = new ArrayList<>();
-        for (String p : Recents.load(a)) {
-            AppAdapter.Entry e = byPkg.get(p);
-            if (e != null) recent.add(e);
-        }
-        if (titles.isEmpty() && recent.isEmpty()) {
-            note("Nothing to show yet. Discover lists what is on this TV: titles you save in My Space and the apps you "
-                    + "open from Home. It does not download a catalogue or recommendations.");
-            screenContent.addView(row(a.getString(R.string.scenic_apps), null, () -> { closeScreenNow(); showApps(true, true); }));
-            screenContent.addView(row(a.getString(R.string.scenic_my_space), null, this::openMySpace));
-            focusFirstRow();
-            return;
-        }
-        if (!titles.isEmpty()) {
-            heading("From My Space");
-            for (int i = 0; i < Math.min(6, titles.size()); i++) screenContent.addView(titleRow(titles.get(i), false));
-        }
-        if (!recent.isEmpty()) {
-            heading("Recently opened");
-            for (AppAdapter.Entry e : recent) screenContent.addView(appRow(e));
-        }
-        focusFirstRow();
-    }
-
-    // My Space: local titles in collections.
-    private void openMySpace() {
-        openScreen(a.getString(R.string.scenic_my_space), this::openMySpace);
-        List<MySpace.Title> titles = MySpace.load(a);
-        screenContent.addView(row("Add a title", null, this::openAddTitle));
-        if (titles.isEmpty()) {
-            note("Save shows, films or albums here to find them again, grouped in collections. Titles stay on this "
-                    + "TV. A title can open its app, or a link the app understands.");
-        } else {
-            for (Map.Entry<String, List<MySpace.Title>> c : MySpace.byCollection(titles).entrySet()) {
-                heading(c.getKey());
-                for (MySpace.Title t : c.getValue()) screenContent.addView(titleRow(t, true));
-            }
-            note("Hold OK on a title to remove it.");
-        }
-        focusFirstRow();
-    }
-
-    private void openAddTitle() {
-        openScreen("Add a title", this::openAddTitle);
-        EditText title = field("Title");
-        EditText collection = field("Collection (" + MySpace.DEFAULT_COLLECTION + ")");
-        EditText link = field("Link (optional)");
-        screenContent.addView(title, fieldLp());
-        screenContent.addView(collection, fieldLp());
-        final List<AppAdapter.Entry> apps = new ArrayList<>(dockAdapter.items);
-        for (AppAdapter.Entry e : a.allEntries()) if (!apps.contains(e)) apps.add(e);
-        final int[] app = {-1};
-        View[] holder = new View[1];
-        holder[0] = row("Opens with", "None", () -> {
-            app[0] = apps.isEmpty() ? -1 : (app[0] + 1) % (apps.size() + 1);
-            if (app[0] == apps.size()) app[0] = -1;
-            ((TextView) holder[0].findViewWithTag("status")).setText(app[0] < 0 ? "None" : apps.get(app[0]).label);
-        });
-        screenContent.addView(holder[0]);
-        screenContent.addView(link, fieldLp());
-        screenContent.addView(row("Save", null, () -> {
-            String t = title.getText().toString().trim();
-            if (t.isEmpty()) {
-                Toast.makeText(a, "Type a title first", Toast.LENGTH_SHORT).show();
-                title.requestFocus();
-                return;
-            }
-            List<MySpace.Title> all = MySpace.load(a);
-            all.add(0, new MySpace.Title(t, collection.getText().toString(), app[0] >= 0 ? apps.get(app[0]).pkg : "",
-                    link.getText().toString()));
-            MySpace.save(a, all);
-            hideKeyboard();
-            openMySpace();
-        }));
-        note("OK on “Opens with” picks the next app. A link (for example one copied from the app) opens in that app.");
-        title.requestFocus();
-        showKeyboard(title);
-    }
-
-    private View titleRow(MySpace.Title t, boolean removable) {
-        AppAdapter.Entry e = t.pkg.isEmpty() ? null : byPkgOrAll(t.pkg);
-        View r = row(t.title, e != null ? e.label : t.collection, () -> openTitle(t));
-        if (removable) {
-            r.setOnLongClickListener(v -> {
-                List<MySpace.Title> all = MySpace.load(a);
-                all.remove(t);
-                MySpace.save(a, all);
-                Toast.makeText(a, "Removed “" + t.title + "”", Toast.LENGTH_SHORT).show();
-                openMySpace();
-                return true;
-            });
-        }
-        return r;
-    }
-
-    private AppAdapter.Entry byPkgOrAll(String pkg) {
-        AppAdapter.Entry e = byPkg.get(pkg);
-        return e;
-    }
-
-    private void openTitle(MySpace.Title t) {
-        if (!t.uri.isEmpty()) {
-            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(t.uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            if (!t.pkg.isEmpty()) i.setPackage(t.pkg);
-            if (i.resolveActivity(a.getPackageManager()) != null) {
-                closeScreenNow();
-                a.openIntent(i);
-                return;
-            }
-        }
-        AppAdapter.Entry e = t.pkg.isEmpty() ? null : byPkg.get(t.pkg);
-        if (e != null) {
-            closeScreenNow();
-            launch(e);
-            return;
-        }
-        Toast.makeText(a, t.pkg.isEmpty() ? "No app is set for this title" : "Its app is not installed", Toast.LENGTH_SHORT).show();
     }
 
     private void openWallpapers() {

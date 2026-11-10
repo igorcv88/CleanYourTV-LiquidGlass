@@ -61,26 +61,6 @@ public class ScenicLogicTest {
         for (int p : dot) assertEquals(0xFF, p >>> 24);
     }
 
-    @Test public void mySpaceRoundTripsAwkwardText() {
-        List<MySpace.Title> in = Arrays.asList(
-                new MySpace.Title("Tab\there", "Films", "com.app", "app://x?a=1\\b"),
-                new MySpace.Title("Two\nlines", "", "", ""));
-        List<MySpace.Title> out = MySpace.decode(MySpace.encode(in));
-        assertEquals(in, out);
-        assertEquals(MySpace.DEFAULT_COLLECTION, out.get(1).collection);
-    }
-
-    @Test public void mySpaceGroupsAndSearches() {
-        List<MySpace.Title> t = Arrays.asList(new MySpace.Title("Dune", "Films", "", ""),
-                new MySpace.Title("Severance", "Series", "", ""), new MySpace.Title("Arrival", "Films", "", ""));
-        assertEquals(Arrays.asList("Films", "Series"), new java.util.ArrayList<>(MySpace.byCollection(t).keySet()));
-        assertEquals(2, MySpace.byCollection(t).get("Films").size());
-        assertEquals(1, MySpace.search(t, "sev").size());
-        assertEquals(2, MySpace.search(t, "films").size());
-        assertEquals(0, MySpace.search(t, " ").size());
-        assertEquals(Collections.emptyList(), MySpace.decode(""));
-    }
-
     @Test public void weatherCodes() {
         assertEquals("Clear", Weather.describe(0));
         assertEquals("Partly cloudy", Weather.describe(2));

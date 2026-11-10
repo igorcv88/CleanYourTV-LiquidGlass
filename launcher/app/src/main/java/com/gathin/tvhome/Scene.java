@@ -20,6 +20,24 @@ final class Scene {
     private static Bitmap still, music;
     private static float stillLum = GlassTone.UNKNOWN, musicLum = GlassTone.UNKNOWN;
     private static final List<WeakReference<View>> hosts = new ArrayList<>();
+    /** The backdrop's hues (never the album's), or null; Home's progress line takes its colour from them. */
+    private static int[] stillPalette;
+    private static Runnable paletteListener;
+
+    static int[] palette() {
+        return stillPalette;
+    }
+
+    /** One listener (Scenic Home's progress line), told only when the backdrop's hues change. */
+    static void setPaletteListener(Runnable l) {
+        paletteListener = l;
+    }
+
+    private static void setPalette(int[] p) {
+        if (p == stillPalette || java.util.Arrays.equals(p, stillPalette)) return;
+        stillPalette = p;
+        if (paletteListener != null) paletteListener.run();
+    }
 
     /** The current blurred scene, or null. */
     static Bitmap current() {
@@ -32,7 +50,14 @@ final class Scene {
     }
 
     static void setStill(Bitmap blurred) {
+        if (blurred != still) setPalette(measurePalette(blurred));
         setStill(blurred, blurred == still ? stillLum : measure(blurred));
+    }
+
+    /** An aerial sample whose hues were read on the worker, a few times a minute at most they change. */
+    static void setStill(Bitmap blurred, float luminance, int[] palette) {
+        setPalette(palette);
+        setStill(blurred, luminance);
     }
 
     /** A sample whose luminance was measured where it was made (the aerial's worker): nothing scanned here. */
@@ -63,6 +88,19 @@ final class Scene {
         }
     }
 
+    private static int[] measurePalette(Bitmap b) {
+        if (b == null || b.isRecycled() || b.getConfig() == Bitmap.Config.HARDWARE) return null;
+        try {
+            int w = b.getWidth(), h = b.getHeight();
+            if (w <= 0 || h <= 0 || (long) w * h > 65536L) return null;
+            int[] px = new int[w * h];
+            b.getPixels(px, 0, w, 0, 0, w, h);
+            return Blur.scenePalette(px);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     static void register(View v) {
         hosts.add(new WeakReference<>(v));
     }
@@ -79,6 +117,8 @@ final class Scene {
         music = null;
         stillLum = GlassTone.UNKNOWN;
         musicLum = GlassTone.UNKNOWN;
+        stillPalette = null;
+        paletteListener = null;
         hosts.clear();
     }
 }

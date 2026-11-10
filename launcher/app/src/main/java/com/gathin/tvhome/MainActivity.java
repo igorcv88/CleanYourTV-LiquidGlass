@@ -1057,6 +1057,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     void openIntent(Intent intent) { open(intent); }
     void openNetworkSettings() { open(systemIntent(Settings.ACTION_WIFI_SETTINGS)); }
     void openTvSettings() { open(systemIntent(Settings.ACTION_SETTINGS)); }
+    /** The TV's own app list (Settings > Apps), where apps are uninstalled, disabled or enabled. */
+    void openAppSettings() {
+        Intent manage = new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS);
+        boolean listed = getPackageManager().resolveActivity(manage, PackageManager.MATCH_DEFAULT_ONLY) != null;
+        open(listed ? manage : systemIntent(Settings.ACTION_APPLICATION_SETTINGS));
+    }
     boolean hasInputs() {
         // Keep the same vendor and Live TV fallbacks as the classic Inputs pill.
         if (liveTvIntent() != null || !sourcePanelService.isEmpty()
