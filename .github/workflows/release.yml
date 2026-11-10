@@ -1,4 +1,4 @@
-name: CleanYourTV Scenic — Publish full Setup release
+name: Cleaner TV Liquid Glass — Publish full Setup release
 
 on:
   workflow_dispatch:
