@@ -164,9 +164,9 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
         run: |
           set -euo pipefail
-          notes='Download the Setup ZIP for Cleaner TV Liquid Glass, including the CleanYourTV 3.3 optimization toolkit, firmware-aware scripts and Home installer. The standalone APK installs only the launcher. The stock Home stays enabled by default. Debloat requires an exact firmware fingerprint and explicit approval. Check the matching SHA-256 files and keep the rollback records. Liquid Glass visuals and performance must be tested on the target TV before stable release.'
+          notes='Download the Setup ZIP for the complete CleanYourTV 3.3 toolkit, firmware-aware optimization scripts and Home installer. The standalone APK installs only the launcher. The stock Home stays enabled by default. Debloat requires an exact firmware fingerprint and explicit approval. Check the matching SHA-256 files and keep the rollback records. Scenic visuals and performance must be tested on the target TV before stable release.'
           args=(release create "$TAG" "release/$APK" "release/$APK.sha256" "release/$ZIP" "release/$ZIP.sha256" \
-            --target "$GITHUB_SHA" --title "Cleaner TV Liquid Glass — $TAG" --notes "$notes")
+            --target "$GITHUB_SHA" --title "CleanYourTV 3.3 + Scenic Glass — $TAG" --notes "$notes")
           if [ "$CHANNEL" = beta ]; then args+=(--prerelease --latest=false); fi
           gh "${args[@]}"
 

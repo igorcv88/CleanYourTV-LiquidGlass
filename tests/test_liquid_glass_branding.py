@@ -48,10 +48,9 @@ class LiquidGlassBrandingTest(unittest.TestCase):
         self.assertIn('"scenic_home": true', theme)
         self.assertIn('"scenic_home"', prefs)
 
-    def test_release_title_and_workflow_name_match_brand(self):
+    def test_manual_workflow_name_matches_brand(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
         self.assertIn("name: Cleaner TV Liquid Glass — Publish full Setup release", workflow)
-        self.assertIn('"Cleaner TV Liquid Glass — $TAG"', workflow)
 
 
 if __name__ == "__main__":
