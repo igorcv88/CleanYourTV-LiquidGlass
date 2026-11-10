@@ -19,8 +19,8 @@ import android.view.View;
  * right end.
  *
  * <p>While music plays, waves rise from the elapsed part of the line, after Samsung Music's player: filled,
- * overlapping translucent layers ({@link RibbonSwells}), a pale neutral one behind and the cover's palette in
- * front ({@link ArtPalette}), each a range of swells that pulse at their own tempo and drift along the line.
+ * overlapping translucent layers ({@link RibbonSwells}) washed in the backdrop's hues on Home and in the cover's
+ * ({@link ArtPalette}) in Listen, each a range of swells that pulse at their own tempo and drift along the line.
  * They are procedural decoration, not audio analysis. The line itself is always a straight horizontal segment:
  * the waves sit on it and never move it, the time labels or the knob. Reduced motion turns them off.
  *
@@ -88,6 +88,13 @@ final class GlassCurrentView extends View {
     private final int[] palette = ArtPalette.DEFAULT.clone();
     private long paletteAt = -PALETTE_FADE_MS;
     private int gradientStep = -1;
+    /** The backdrop's hues for Home, cross-faded the same way; all white when the scene has no colour. */
+    private static final int[] WHITE3 = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
+    private int[] fromScene = WHITE3.clone(), toScene = WHITE3.clone();
+    private final int[] scene = WHITE3.clone();
+    private long sceneAt = -PALETTE_FADE_MS;
+    /** What is drawn: the scene's hues on Home, the cover's in Listen, mixed by {@link #colour}. */
+    private final int[] mix = WHITE3.clone();
 
     /** Overall swell presence 0..1, eased toward 1 while playing and 0 while paused. */
     private float level;
@@ -158,6 +165,18 @@ final class GlassCurrentView extends View {
         invalidate();
     }
 
+    /** The backdrop's palette (null: a scene without colour, so white glass); cross-fades from the last. */
+    void setScenePalette(int[] hues) {
+        int[] next = hues == null ? WHITE3 : hues;
+        if (java.util.Arrays.equals(next, toScene)) return;
+        fromScene = scene.clone();
+        toScene = next.clone();
+        sceneAt = SystemClock.uptimeMillis();
+        if (!animateWave) sceneAt -= PALETTE_FADE_MS;
+        gradientStep = -1;
+        invalidate();
+    }
+
     /** The playing track's position source (null when paused or unknown); the labels still come per second. */
     void setLivePosition(java.util.function.LongSupplier position, long duration) {
         livePosition = duration > 0 ? position : null;
@@ -222,20 +241,28 @@ final class GlassCurrentView extends View {
     /** Advances the palette fade; rebuilds the line's shader only at a few steps of it, not every frame. */
     private boolean updatePalette(long now) {
         float t = Math.min(1f, (now - paletteAt) / (float) PALETTE_FADE_MS);
-        for (int i = 0; i < 3; i++) palette[i] = ArtPalette.lerp(fromPalette[i], toPalette[i], t);
-        int step = Math.round(t * GRADIENT_STEPS);
+        float s = Math.min(1f, (now - sceneAt) / (float) PALETTE_FADE_MS);
+        for (int i = 0; i < 3; i++) {
+            palette[i] = ArtPalette.lerp(fromPalette[i], toPalette[i], t);
+            scene[i] = ArtPalette.lerp(fromScene[i], toScene[i], s);
+            mix[i] = ArtPalette.lerp(scene[i], palette[i], colour);
+        }
+        // The shader is rebuilt only at a few steps of each fade and of the Listen motion, not every frame.
+        int step = Math.round(t * GRADIENT_STEPS)
+                + (GRADIENT_STEPS + 1) * (Math.round(s * GRADIENT_STEPS)
+                + (GRADIENT_STEPS + 1) * Math.round(colour * GRADIENT_STEPS));
         if (step != gradientStep) {
             gradientStep = step;
-            // The played line in the cover's colours, light enough to read as lit, as Samsung's player does.
+            // The played line in the scene's (Listen: the cover's) colours, light enough to read as lit.
             lit.setShader(new LinearGradient(pathStart, 0f, pathEnd, 0f,
-                    new int[]{ArtPalette.toward(palette[1], 0xFFFFFFFF, 0.35f),
-                            ArtPalette.toward(palette[0], 0xFFFFFFFF, 0.2f)},
+                    new int[]{ArtPalette.toward(mix[1], 0xFFFFFFFF, 0.35f),
+                            ArtPalette.toward(mix[0], 0xFFFFFFFF, 0.2f)},
                     null, Shader.TileMode.CLAMP));
-            glow.setColor((palette[0] & 0x00FFFFFF) | 0x38000000);
-            knobRing.setColor(ArtPalette.toward(palette[0], 0xFFFFFFFF, 0.15f));
-            knobGlow.setColor((palette[0] & 0x00FFFFFF) | 0x47000000);
+            glow.setColor((mix[0] & 0x00FFFFFF) | 0x38000000);
+            knobRing.setColor(ArtPalette.toward(mix[0], 0xFFFFFFFF, 0.15f));
+            knobGlow.setColor((mix[0] & 0x00FFFFFF) | 0x47000000);
         }
-        return t < 1f;
+        return t < 1f || s < 1f;
     }
 
     private boolean updateLevel(long now) {
@@ -289,10 +316,21 @@ final class GlassCurrentView extends View {
     private static final int[] WHITE_LAYERS = {0x2EFFFFFF, 0x47FFFFFF, 0x3DFFFFFF, 0x57FFFFFF};
 
     private int layerColour(int layer) {
-        int white = WHITE_LAYERS[layer];
-        if (colour <= 0f) return white;
+        int home = sceneLayer(layer);
+        if (colour <= 0f) return home;
         int tinted = tintedLayer(layer);
-        return colour >= 1f ? tinted : ArtPalette.lerp(white, tinted, colour);
+        return colour >= 1f ? tinted : ArtPalette.lerp(home, tinted, colour);
+    }
+
+    /** Home: the white glass layers, washed in the backdrop's hues (white again for a scene without colour). */
+    private int sceneLayer(int layer) {
+        int white = WHITE_LAYERS[layer];
+        switch (layer) {
+            case 0: return white;
+            case 1: return (scene[0] & 0x00FFFFFF) | (white & 0xFF000000);
+            case 2: return (ArtPalette.toward(scene[1], 0xFFFFFFFF, 0.15f) & 0x00FFFFFF) | (white & 0xFF000000);
+            default: return (ArtPalette.toward(scene[2], 0xFFFFFFFF, 0.3f) & 0x00FFFFFF) | (white & 0xFF000000);
+        }
     }
 
     /** Back to front: a pale haze, the cover's main colour, its second, then a light tint of the third. */

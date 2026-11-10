@@ -79,7 +79,11 @@ public class ScenicContractTest {
 
     @Test public void everyOverlayTrapsTheDpad() {
         String keys = body(src("ScenicHome.java"), "boolean dispatchKey(KeyEvent ev)");
-        assertContains("Control Center trap", keys, "return next == null || !controlCenter.contains(next);");
+        assertContains("Control Center trap", keys, "if (next != null && controlCenter.contains(next)) return false;");
+        assertContains("Up from the sheet's top row reaches its header button", keys,
+                "if (code == KeyEvent.KEYCODE_DPAD_UP) quickButton.requestFocus();");
+        assertContains("Down from the header returns into the sheet", keys,
+                "else if (code == KeyEvent.KEYCODE_DPAD_DOWN) controlCenter.focusFirst();");
         assertContains("Control Center lost focus", keys, "controlCenter.focusFirst();");
         assertContains("panel/screen trap", keys, "if (next == null || !isInside(next, container)) return true;");
         assertContains("listen trap", keys, "if (listening) return listenKey(f, code);");
@@ -90,8 +94,8 @@ public class ScenicContractTest {
         String keys = body(src("ScenicHome.java"), "boolean dispatchKey(KeyEvent ev)");
         assertContains("Down from the dock opens All Apps", keys,
                 "case ROW_DOCK:\n                    showApps(true, true);");
-        assertContains("Up from the first row focuses the raised dock", keys,
-                "row == ROW_NONE && a.focusedGridIsFirstRow()) {\n                focusDock(lastDockPos);");
+        assertContains("Up from the first row reaches the dock and so Home", keys,
+                "a.focusedGridIsFirstRow()) {\n                showApps(false, false);\n                handler.post(() -> focusDock(lastDockPos));");
         assertContains("Down from the raised dock returns to the grid", keys,
                 "if (row == ROW_DOCK && code == KeyEvent.KEYCODE_DPAD_DOWN) {\n                if (a.hasScenicGridItems()) a.focusGridAt(0);");
         assertContains("Up from the raised dock collapses the sheet", keys,
@@ -233,13 +237,14 @@ public class ScenicContractTest {
         assertContains("two reused output bitmaps", sample, "glassStream.blur(target, side, radius)");
         assertContains("copied at twice the frost's size", sample, "2f * side");
         String done = body(aerial, "private void glassSampled(");
-        assertContains("the next copy follows the last, at the same rate under music", done, "GLASS_FRAME_MS - took");
+        assertContains("the next copy follows the last, at the same rate under music", done, "frameMs - took");
+        assertContains("the rate adapts to what this TV can sustain", done, "frameMs = frameMsFor(tookAvg);");
         assertContains("a smaller sample under music", sample, "music ? Blur.MUSIC_SIDE : Blur.MOTION_SIDE");
         assertContains("only when the user opts in", sample, "lightFrostWithMusic && externalAudioPlaying");
         String audio = body(aerial, "void setExternalAudioPlaying(boolean playing)");
         assertContains("paused reports never restart the end grace", audio, "if (externalAudioPlaying && !musicEndPending) {");
         assertContains("opt-in, off by default", src("ScenicHome.java"), "getBoolean(MUSIC_FROST_KEY, false)");
-        assertContains("luminance measured off the UI thread", done, "Scene.setStill(frost, lum);");
+        assertContains("luminance measured off the UI thread", done, "Scene.setStill(frost, lum, hues);");
     }
 
     @Test public void focusIsGlassNeverAWhiteFill() {

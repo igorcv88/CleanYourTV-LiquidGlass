@@ -63,9 +63,14 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
      * and blurred on a worker (Blur.Stream, two reused bitmaps), and the next copy starts as soon as one
      * is on screen, up to this rate. Never a live GPU blur, a UI-thread pixel loop or an allocation per sample.
      */
-    // About 15 a second: at 10 the frost visibly stepped behind the moving video. Where CPU is short while music
-    // plays, Appearance > "Lighter glass with music" shrinks the sample (Blur.MUSIC_SIDE) at the same rate.
+    // The rate adapts to the TV: it starts at about 15 a second (at 10 the frost visibly stepped behind the
+    // video), and a TV that turns a sample around quickly climbs to 20, 30 or 40 a second (frameMsFor), so a
+    // strong set follows the flight closely while a weak one keeps its CPU and RenderThread for the music.
+    // Where CPU is short while music plays, Appearance > "Lighter glass with music" also shrinks the sample.
     private static final long GLASS_FRAME_MS = 66L;
+    /** Smoothed time from copy to frost on screen, ms (-1 until the first sample), and the interval it sets. */
+    private float tookAvg = -1f;
+    private long frameMs = GLASS_FRAME_MS;
     /** After a refused copy (the surface between frames, a seek): try again a little later. */
     private static final long GLASS_RETRY_MS = 500L;
     private static final ExecutorService GLASS_WORKER = Executors.newSingleThreadExecutor();
@@ -450,7 +455,8 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
                     Bitmap frost = glassStream.blur(target, side, radius);
                     blurMs += android.os.SystemClock.uptimeMillis() - b0;
                     float lum = glassStream.luminance();
-                    main.post(() -> glassSampled(frost, lum));
+                    int[] hues = glassStream.palette();
+                    main.post(() -> glassSampled(frost, lum, hues));
                 });
             }, main);
         } catch (IllegalArgumentException e) {
@@ -460,21 +466,35 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     }
 
     /** On the main thread: show the new frost and start the next copy, keeping to GLASS_FRAME_MS. */
-    private void glassSampled(Bitmap frost, float lum) {
+    private void glassSampled(Bitmap frost, float lum, int[] hues) {
         sampling = false;
         if (!resumed || !scenic || player == null) return;
-        Scene.setStill(frost, lum);
+        Scene.setStill(frost, lum, hues);
         long took = android.os.SystemClock.uptimeMillis() - sampleStarted;
         statTotalMs += took;
+        tookAvg = tookAvg < 0f ? took : tookAvg * 0.9f + took * 0.1f;
+        frameMs = frameMsFor(tookAvg);
         // One line per Home start: what the frost costs on this TV, for bug reports. Never repeated.
         if (statSamples >= 0 && ++statSamples == 120) {
             Log.i(TAG, "glass samples: " + statSamples + " at " + (statTotalMs / statSamples) + " ms each, copy "
-                    + (copyMs / statSamples) + " ms, blur " + (blurMs / statSamples) + " ms");
+                    + (copyMs / statSamples) + " ms, blur " + (blurMs / statSamples) + " ms, every " + frameMs + " ms");
             copyMs = 0;
             blurMs = 0;
             statSamples = -1;
         }
         main.removeCallbacks(refreshGlass);
-        main.postDelayed(refreshGlass, Math.max(8L, GLASS_FRAME_MS - took));
+        main.postDelayed(refreshGlass, Math.max(8L, frameMs - took));
+    }
+
+    /**
+     * The frost's interval for a TV that takes {@code tookMs} (smoothed) from copy to frost on screen: a sample
+     * may take at most about half its interval, so the copies, which hold the RenderThread, never crowd the
+     * frames Home itself needs. A slow or busy TV (music decoding beside it) falls back to GLASS_FRAME_MS.
+     */
+    static long frameMsFor(float tookMs) {
+        if (tookMs <= 12f) return 25L;
+        if (tookMs <= 16f) return 33L;
+        if (tookMs <= 25f) return 50L;
+        return GLASS_FRAME_MS;
     }
 }

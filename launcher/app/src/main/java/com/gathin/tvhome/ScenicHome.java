@@ -99,6 +99,8 @@ final class ScenicHome implements NowPlaying.Listener {
     private final View header;
     private final TextView weatherView;
     private final View settingsButton;
+    /** The header's Control Center button: Up from the sheet's top row lands here, as on iOS. */
+    private final View quickButton;
     private final FrameLayout dockFrame;
     private final RecyclerView dock;
     private final DockAdapter dockAdapter;
@@ -235,12 +237,16 @@ final class ScenicHome implements NowPlaying.Listener {
         quickLp.setMarginStart(dp(18));
         right.addView(quick, quickLp);
         quick.setOnClickListener(v -> toggleControlCenter());
+        quickButton = quick;
         ImageView gear = roundButton(R.drawable.ic_settings, 48, a.getString(R.string.scenic_settings));
         settingsButton = gear;
         LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(48), dp(48));
         gearLp.setMarginStart(dp(12));
         right.addView(gear, gearLp);
-        gear.setOnClickListener(v -> openPanel());
+        gear.setOnClickListener(v -> {
+            if (controlCenter != null && controlCenter.isOpen()) closeControlCenterNow();
+            openPanel();
+        });
 
         // ---- dock ----
         int screenW = activity.getResources().getDisplayMetrics().widthPixels;
@@ -299,6 +305,9 @@ final class ScenicHome implements NowPlaying.Listener {
         ribbon.setVisibility(View.GONE);
         ribbon.setSeekListener(this::seekBy);
         ribbon.setMotionEnabled(!reducedMotion);
+        // On Home the line takes the backdrop's colours (the aerial or wallpaper behind it); Listen, the cover's.
+        Scene.setPaletteListener(() -> ribbon.setScenePalette(Scene.palette()));
+        ribbon.setScenePalette(Scene.palette());
 
         // ---- now playing group, above the ribbon ----
         nowGroup = new LinearLayout(activity);
@@ -853,12 +862,22 @@ final class ScenicHome implements NowPlaying.Listener {
         if (listening) return listenKey(f, code);
         if (controlCenter != null && controlCenter.isOpen()) {
             if (!isDpad(code)) return false;
+            if (f == quickButton || f == settingsButton) {
+                // The header's two buttons stay reachable above the open sheet: Left/Right between them,
+                // Down back into the sheet, Up stays.
+                if (code == KeyEvent.KEYCODE_DPAD_LEFT) quickButton.requestFocus();
+                else if (code == KeyEvent.KEYCODE_DPAD_RIGHT) settingsButton.requestFocus();
+                else if (code == KeyEvent.KEYCODE_DPAD_DOWN) controlCenter.focusFirst();
+                return true;
+            }
             if (f == null || !controlCenter.contains(f)) {   // focus was lost mid-animation: bring it back
                 controlCenter.focusFirst();
                 return true;
             }
             View next = f.focusSearch(direction(code));
-            return next == null || !controlCenter.contains(next);
+            if (next != null && controlCenter.contains(next)) return false;
+            if (code == KeyEvent.KEYCODE_DPAD_UP) quickButton.requestFocus();   // top row: up to the button
+            return true;
         }
         boolean screenOpen = screen.getVisibility() == View.VISIBLE && screens.depth() > 0;
         if (panel.getVisibility() == View.VISIBLE || screenOpen) {
@@ -883,8 +902,11 @@ final class ScenicHome implements NowPlaying.Listener {
         // Moving a dock card: Left/Right move it (the card's key listener), Up/Down stay put.
         if (movingPkg != null && row == ROW_DOCK && (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN)) return true;
         if (appsShown) {
+            // Up out of the grid's first row reaches the dock, and the dock means Home: close All Apps
+            // on the way rather than stopping on the raised shelf for one more press.
             if (code == KeyEvent.KEYCODE_DPAD_UP && row == ROW_NONE && a.focusedGridIsFirstRow()) {
-                focusDock(lastDockPos);
+                showApps(false, false);
+                handler.post(() -> focusDock(lastDockPos));
                 return true;
             }
             if (row == ROW_DOCK && code == KeyEvent.KEYCODE_DPAD_DOWN) {

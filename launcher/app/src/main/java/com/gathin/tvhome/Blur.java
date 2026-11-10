@@ -16,25 +16,26 @@ final class Blur {
     private Blur() { }
 
     /**
-     * Scenic Glass's frost: 320 px across a 1920 px screen with three radius-8 box passes, a gaussian of about
-     * 50 screen pixels: colour and light come through the glass, detail does not (no terrace steps, no roof
-     * edges), and the 6x stretch back to the screen never shows a pixel. A box pass costs the same at any
+     * Scenic Glass's frost: 320 px across a 1920 px screen with three radius-10 box passes, a gaussian of about
+     * 63 screen pixels: colour and light come through the glass, detail does not (at ~50 px the big panels
+     * still showed shapes moving behind them), and the 6x stretch back to the screen never shows a pixel. A box pass costs the same at any
      * radius. The old 96 px / radius 4 sample (~90 px) was a featureless smear that read as milk.
      */
-    static final int GLASS_SIDE = 320, GLASS_RADIUS = 8;
+    static final int GLASS_SIDE = 320, GLASS_RADIUS = 10;
 
     /**
-     * The aerial's moving frost, sampled many times a second: 240 px with radius 5, about 44 screen pixels,
-     * matching the still frost. It is copied from the video at twice this size and halved with filtering:
+     * The aerial's moving frost, sampled many times a second: 240 px with radius 7, about 60 screen pixels,
+     * matching the still frost; wide enough that a fast subject behind a panel reads as moving colour, so the
+     * frame or two the frost trails the video does not show as a shape lagging behind. It is copied from the video at twice this size and halved with filtering:
      * a copy straight at this size point-samples the video, which showed as sharp, pixelated detail.
      */
-    static final int MOTION_SIDE = 240, MOTION_RADIUS = 5;
+    static final int MOTION_SIDE = 240, MOTION_RADIUS = 7;
 
     /**
      * The aerial's frost while music plays over it: a smaller sample (about 2.3x cheaper to blur, and a smaller
-     * copy), blurred wider (~66 px) so its lower resolution never shows. Same rate: only quality is traded.
+     * copy), blurred wider (~78 px) so its lower resolution never shows. Same rate: only quality is traded.
      */
-    static final int MUSIC_SIDE = 160, MUSIC_RADIUS = 5;
+    static final int MUSIC_SIDE = 160, MUSIC_RADIUS = 6;
 
     /** The scene sample every glass surface draws: see {@link #GLASS_SIDE}. */
     static Bitmap glass(Bitmap src) {
@@ -98,6 +99,12 @@ final class Blur {
         }
     }
 
+    /** {@link ArtPalette} of a scene, or null when it has no real hue: the line then stays white glass. */
+    static int[] scenePalette(int[] px) {
+        int[] p = ArtPalette.from(px);
+        return java.util.Arrays.equals(p, ArtPalette.DEFAULT) ? null : p;
+    }
+
     private static int index(int line, int i, int w, boolean horizontal) {
         return horizontal ? line * w + i : i * w + line;
     }
@@ -113,6 +120,11 @@ final class Blur {
         private int[] px, tmp;
         private int next;
         private float luminance = 0.5f;
+        /** The scene's hues, re-read about once a second (every PALETTE_EVERY frames), from a sparse sample. */
+        private static final int PALETTE_EVERY = 16, PALETTE_SAMPLES = 1024;
+        private int frames;
+        private int[] sparse;
+        private volatile int[] palette;
 
         /** The blurred frame (one of two bitmaps, alternating); src untouched. */
         Bitmap blur(Bitmap src, int maxSide, int radius) {
@@ -143,8 +155,22 @@ final class Blur {
             boxBlur(px, tmp, sw, sh, radius);
             dst.setPixels(px, 0, sw, 0, 0, sw, sh);
             luminance = GlassTone.meanLuminance(px);
+            if (frames++ % PALETTE_EVERY == 0) palette = scenePalette(px);
             next = 1 - next;
             return dst;
+        }
+
+        private int[] scenePalette(int[] all) {
+            int n = Math.min(PALETTE_SAMPLES, all.length);
+            if (sparse == null || sparse.length != n) sparse = new int[n];
+            float stride = all.length / (float) n;
+            for (int i = 0; i < n; i++) sparse[i] = all[(int) (i * stride)];
+            return Blur.scenePalette(sparse);
+        }
+
+        /** The last frames' three hues for Home's progress line, or null for a scene without colour. */
+        int[] palette() {
+            return palette;
         }
 
         /** Mean luminance of the last frame blurred, for the glass tint. */
