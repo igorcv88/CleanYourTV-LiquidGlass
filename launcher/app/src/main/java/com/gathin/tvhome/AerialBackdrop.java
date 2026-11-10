@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.drawable.GradientDrawable;
-import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,7 +14,6 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
@@ -38,24 +36,12 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
 
     /** Not final: cycling swaps in the next aerial. */
     private File file;
-    private final ImageView cover;
     /**
-     * Back from an app, the player is built again and its first frame takes a second or two: the cover then
-     * shows the frame the flight stopped on (a small still, read on the worker when Home went away) instead
-     * of black, and fades into the video at the same keyframe. Scenic only; null until the first pause.
+     * Black over the aerial until its first frame. No still of the last frame: the TV fades its video plane
+     * in from black on its own, so a still dissolved into black before the flight came back, and read as
+     * a glitch (a still, black, then the video).
      */
-    private File posterFor;
-    private int posterGeneration;
-    /**
-     * The still is copied from the screen as Home leaves (PixelCopy, the frost's own path), not decoded from
-     * the file: by then the app being opened holds the TV's video decoder, and a decode of the file either
-     * failed or finished too late, so Home still came back black. One reused bitmap, a quarter of the screen.
-     */
-    private Bitmap posterCopy;
-    /** Release the player at the latest this long after Home leaves, if the copy has not answered. */
-    private static final long POSTER_COPY_TIMEOUT_MS = 250L;
-    /** How long the TV's video plane takes to show a frame after Android reports it rendered. */
-    static final long VIDEO_PLANE_MS = 1200L;
+    private final View cover;
     private final View gridDim;
     private final SharedPreferences prefs;
     private MediaPlayer player;
@@ -220,8 +206,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         release();
         prefs.edit().putString(CYCLE_FILE, next.getName()).remove(POSITION).apply();
         cover.animate().cancel();
-        clearPoster();
-        cover.animate().setStartDelay(0).alpha(1f).setDuration(300).withEndAction(() -> {
+        cover.animate().alpha(1f).setDuration(300).withEndAction(() -> {
             file = next;
             preparedFor = null;
             preparedFile = null;
@@ -274,8 +259,7 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         gridDim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         root.addView(gridDim, index + 3, full);
 
-        cover = new ImageView(context);
-        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);   // as the video: scaled to fill, cropped
+        cover = new View(context);
         cover.setBackgroundColor(coverColor);
         cover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         root.addView(cover, index + 4, full);
@@ -291,15 +275,6 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
 
     void resume() {
         resumed = true;
-        if (posterFor != null && !posterFor.equals(file)) clearPoster();   // another flight now: black, as before
-        if (player != null) {
-            // Back within the copy's moment: the player was never released and its frames still flow, so no
-            // first-frame event will lift the cover. Lift it now and restart the frost.
-            cover.animate().cancel();
-            cover.animate().setStartDelay(0).alpha(0f).setDuration(200).start();
-            if (scenic) main.postDelayed(refreshGlass, 100);
-            return;
-        }
         start();
     }
 
@@ -320,7 +295,6 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         externalAudioPlaying = true;
         if (!ScenicAudioPolicy.allowAerial(true, preparedVideoOnly)) {
             release();
-            clearPoster();
             cover.animate().cancel();
             cover.setAlpha(1f);
         } else {
@@ -336,51 +310,9 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
     void pause() {
         resumed = false;
         cancelPreparation();
-        final MediaPlayer playing = player;
-        if (playing == null || !copyPoster(playing)) {
-            release();
-            if (playing != null) capturePoster();   // no copy possible: decode the still from the file
-        }
+        release();
         cover.animate().cancel();
         cover.setAlpha(1f);
-    }
-
-    /**
-     * Copies the flight's current frame for the cover, then releases the player (the copy needs its last
-     * frame on the surface). False when no copy can start; the caller then releases at once.
-     */
-    private boolean copyPoster(MediaPlayer playing) {
-        if (!scenic || surface == null || video == null || video.getWidth() == 0 || video.getHeight() == 0) return false;
-        int w = Math.max(32, video.getWidth() / 2), h = Math.max(18, video.getHeight() / 2);
-        if (posterCopy == null || posterCopy.getWidth() != w || posterCopy.getHeight() != h) {
-            try {
-                posterCopy = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            } catch (OutOfMemoryError e) {
-                return false;
-            }
-        }
-        final Bitmap target = posterCopy;
-        final File flight = file;
-        final int generation = ++posterGeneration;
-        final Runnable releaseLate = () -> { if (!resumed && player == playing) release(); };
-        try {
-            PixelCopy.request(video, target, result -> {
-                main.removeCallbacks(releaseLate);
-                releaseLate.run();
-                if (generation != posterGeneration) return;
-                if (result == PixelCopy.SUCCESS && flight.equals(file)) {
-                    posterFor = flight;
-                    cover.setImageDrawable(null);   // the same bitmap again: make the view take its new pixels
-                    cover.setImageBitmap(target);
-                } else if (!resumed) {
-                    capturePoster();
-                }
-            }, main);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-        main.postDelayed(releaseLate, POSTER_COPY_TIMEOUT_MS);
-        return true;
     }
 
     /** Stop disk activity as soon as Home goes away; restart only after a new resume/surface. */
@@ -445,13 +377,9 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
             });
             mp.setOnInfoListener((p, what, extra) -> {
                 if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && player == p) {
-                    // The TV shows video on its own hardware plane, which comes up about a second after
-                    // Android reports the first frame (screen captures already show the video; the panel
-                    // is still black). Lifting the cover at the report showed that black between the still
-                    // and the flight, so the cover waits for the plane first.
-                    cover.animate().cancel();
-                    cover.animate().alpha(0f).setStartDelay(VIDEO_PLANE_MS)
-                            .setDuration(cover.getDrawable() != null ? 500 : 300).start();
+                    // Quick: the TV's video plane fades in from black by itself; a second fade over it
+                    // only made the flight come back later.
+                    cover.animate().alpha(0f).setDuration(150).start();
                     if (scenic) main.postDelayed(refreshGlass, 300);
                 }
                 return false;
@@ -468,60 +396,9 @@ final class AerialBackdrop implements SurfaceHolder.Callback {
         }
     }
 
-    /** The frame the flight stopped on, for the cover while Home comes back: see {@link #cover}. */
-    private void capturePoster() {
-        final File source = preparedFile != null && preparedFile.canRead() ? preparedFile : file;
-        if (!scenic || source == null || android.os.Build.VERSION.SDK_INT < 27) return;
-        final File flight = file;
-        final int atMs = prefs.getInt(POSITION, 0);
-        final int generation = ++posterGeneration;
-        GLASS_WORKER.execute(() -> {
-            Bitmap still = null;
-            MediaMetadataRetriever r = new MediaMetadataRetriever();
-            try {
-                r.setDataSource(source.getPath());
-                // As start() resumes: from the beginning when the flight was in its last two seconds.
-                long durationMs = parseLong(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION));
-                long atUs = resumeAtMs(atMs, durationMs) * 1000L;
-                // The keyframe the player resumes from (SEEK_CLOSEST_SYNC), small: a second on screen at most.
-                if (android.os.Build.VERSION.SDK_INT >= 30) {
-                    MediaMetadataRetriever.BitmapParams params = new MediaMetadataRetriever.BitmapParams();
-                    params.setPreferredConfig(Bitmap.Config.RGB_565);
-                    still = r.getScaledFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 960, 540, params);
-                } else {
-                    still = r.getScaledFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 960, 540);
-                }
-            } catch (RuntimeException e) {
-                Log.w(TAG, "no resume still for " + flight.getName() + ": " + e);
-            } finally {
-                try { r.release(); } catch (Exception ignored) { /* already released */ }
-            }
-            final Bitmap frame = still;
-            main.post(() -> {
-                if (generation != posterGeneration || frame == null || !flight.equals(file)) return;
-                posterFor = flight;
-                cover.setImageBitmap(frame);
-            });
-        });
-    }
-
     /** Where playback resumes: the saved position, or the start when it was within two seconds of the end. */
     static int resumeAtMs(int savedMs, long durationMs) {
         return savedMs > 0 && savedMs < durationMs - 2000L ? savedMs : 0;
-    }
-
-    private static long parseLong(String s) {
-        try {
-            return s == null ? 0L : Long.parseLong(s.trim());
-        } catch (NumberFormatException e) {
-            return 0L;
-        }
-    }
-
-    private void clearPoster() {
-        posterGeneration++;
-        posterFor = null;
-        cover.setImageDrawable(null);
     }
 
     private void release() {

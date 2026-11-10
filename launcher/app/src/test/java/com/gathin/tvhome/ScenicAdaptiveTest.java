@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -54,17 +55,13 @@ public class ScenicAdaptiveTest {
                 "src/main/java/com/gathin/tvhome/" + name)), java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    @Test public void homeComesBackOnTheFrameItLeftNotBlack() throws Exception {
+    @Test public void homeComesBackStraightIntoTheFlightWithNoStill() throws Exception {
         String aerial = read("AerialBackdrop.java");
-        assertTrue("the still is copied from the screen, not decoded while an app holds the decoder",
-                aerial.contains("PixelCopy.request(video, target, result -> {"));
-        assertTrue("the player outlives the copy, never Home's absence", aerial.contains("main.postDelayed(releaseLate, POSTER_COPY_TIMEOUT_MS);"));
-        assertTrue("decoding stays as the fallback", aerial.contains("if (playing != null) capturePoster();"));
-        assertTrue("the keyframe the player resumes from", aerial.contains("MediaMetadataRetriever.OPTION_CLOSEST_SYNC"));
+        assertFalse("no still: it dissolved into the TV's black video plane and read as a glitch",
+                aerial.contains("MediaMetadataRetriever") || aerial.contains("Poster"));
         assertTrue(aerial.contains("p.seekTo(at, MediaPlayer.SEEK_CLOSEST_SYNC)"));
-        assertTrue("a new flight never shows the old one's frame", aerial.contains("clearPoster();\n        cover.animate().setStartDelay(0).alpha(1f)"));
-        assertTrue("the cover waits for the TV's video plane, not Android's first-frame report",
-                aerial.contains("cover.animate().alpha(0f).setStartDelay(VIDEO_PLANE_MS)"));
+        assertTrue("the TV fades its plane in itself: the cover only steps aside",
+                aerial.contains("cover.animate().alpha(0f).setDuration(150).start();"));
     }
 
     @Test public void overTheCoverBackdropHomeWearsTheCoversColours() throws Exception {
