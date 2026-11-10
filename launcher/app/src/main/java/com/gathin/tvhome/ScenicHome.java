@@ -1205,6 +1205,8 @@ final class ScenicHome implements NowPlaying.Listener {
     private void showWash(Bitmap blurred, Bitmap glassArt) {
         Scene.setMusic(blurred == null ? null : glassArt);
         boolean wantWash = blurred != null;
+        // Over the cover's wash the progress line wears the cover's colours, as in Listen; else the backdrop's.
+        ribbon.setCoverBackdrop(wantWash);
         if (blurred == washSource && wantWash == washDesired) return;
         washSource = blurred;
         washDesired = wantWash;

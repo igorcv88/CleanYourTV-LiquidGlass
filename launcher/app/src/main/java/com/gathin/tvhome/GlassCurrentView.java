@@ -100,6 +100,13 @@ final class GlassCurrentView extends View {
     private float level;
     /** 0: the waves in shades of white (Home), 1: in the cover's colours (Listen). Follows the Listen motion. */
     private float colour;
+    /**
+     * 1 while the album cover, blurred, is Home's backdrop (Appearance's cover backdrop): Home then shows the
+     * cover's colours as Listen does. Eased over PALETTE_FADE_MS with the wash; 0 over wallpaper or aerial.
+     */
+    private float coverBackdrop;
+    private boolean coverBackdropOn;
+    private long coverBackdropAt = -PALETTE_FADE_MS;
     private long levelAt;
 
     GlassCurrentView(Context ctx) {
@@ -240,17 +247,20 @@ final class GlassCurrentView extends View {
 
     /** Advances the palette fade; rebuilds the line's shader only at a few steps of it, not every frame. */
     private boolean updatePalette(long now) {
+        float k = Math.min(1f, (now - coverBackdropAt) / (float) PALETTE_FADE_MS);
+        coverBackdrop = coverBackdropOn ? k : 1f - k;
+        float cover = Math.max(colour, coverBackdrop);
         float t = Math.min(1f, (now - paletteAt) / (float) PALETTE_FADE_MS);
         float s = Math.min(1f, (now - sceneAt) / (float) PALETTE_FADE_MS);
         for (int i = 0; i < 3; i++) {
             palette[i] = ArtPalette.lerp(fromPalette[i], toPalette[i], t);
             scene[i] = ArtPalette.lerp(fromScene[i], toScene[i], s);
-            mix[i] = ArtPalette.lerp(scene[i], palette[i], colour);
+            mix[i] = ArtPalette.lerp(scene[i], palette[i], cover);
         }
         // The shader is rebuilt only at a few steps of each fade and of the Listen motion, not every frame.
         int step = Math.round(t * GRADIENT_STEPS)
                 + (GRADIENT_STEPS + 1) * (Math.round(s * GRADIENT_STEPS)
-                + (GRADIENT_STEPS + 1) * Math.round(colour * GRADIENT_STEPS));
+                + (GRADIENT_STEPS + 1) * Math.round(cover * GRADIENT_STEPS));
         if (step != gradientStep) {
             gradientStep = step;
             // The played line in the scene's (Listen: the cover's) colours, light enough to read as lit.
@@ -262,7 +272,7 @@ final class GlassCurrentView extends View {
             knobRing.setColor(ArtPalette.toward(mix[0], 0xFFFFFFFF, 0.15f));
             knobGlow.setColor((mix[0] & 0x00FFFFFF) | 0x47000000);
         }
-        return t < 1f || s < 1f;
+        return t < 1f || s < 1f || k < 1f;
     }
 
     private boolean updateLevel(long now) {
@@ -305,6 +315,18 @@ final class GlassCurrentView extends View {
      * How much of the cover's colour the waves carry: none on Home, where they sit quietly over the scenery as
      * shades of white glass, all of it in Listen. Set every frame of the Listen transition.
      */
+    /** The blurred album cover became (or stopped being) Home's backdrop: see {@link #coverBackdrop}. */
+    void setCoverBackdrop(boolean on) {
+        if (on == coverBackdropOn) return;
+        coverBackdropOn = on;
+        long now = SystemClock.uptimeMillis();
+        // Reverse from wherever a running fade is, so a quick toggle never jumps.
+        float done = on ? coverBackdrop : 1f - coverBackdrop;
+        coverBackdropAt = animateWave ? now - (long) (done * PALETTE_FADE_MS) : now - PALETTE_FADE_MS;
+        gradientStep = -1;
+        invalidate();
+    }
+
     void setColour(float t) {
         float next = Math.max(0f, Math.min(1f, t));
         if (next == colour) return;
@@ -317,9 +339,10 @@ final class GlassCurrentView extends View {
 
     private int layerColour(int layer) {
         int home = sceneLayer(layer);
-        if (colour <= 0f) return home;
+        float cover = Math.max(colour, coverBackdrop);
+        if (cover <= 0f) return home;
         int tinted = tintedLayer(layer);
-        return colour >= 1f ? tinted : ArtPalette.lerp(home, tinted, colour);
+        return cover >= 1f ? tinted : ArtPalette.lerp(home, tinted, cover);
     }
 
     /** Home: the white glass layers, washed in the backdrop's hues (white again for a scene without colour). */
