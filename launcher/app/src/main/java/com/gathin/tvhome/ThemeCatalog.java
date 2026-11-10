@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-/** The 16 official CleanYourTV 3.3 themes and the optional Scenic Glass layout. */
+/** The 16 official CleanYourTV 3.3 themes and the optional Liquid Glass layout. */
 final class ThemeCatalog {
     static final String SELECTED_KEY = "selected_builtin_theme";
     private static final String TAG = "ThemeCatalog";
@@ -32,7 +32,7 @@ final class ThemeCatalog {
     private static final String[] LABELS = {
             "Aurora", "Blocky", "Cinematic", "Default", "Dussehra", "Glass",
             "Halloween", "Minimal", "Nature Calm", "Red Rain", "Retro", "Ruska",
-            "Scenes", "Six Columns", "Storm", "Sweden", "Scenic Glass"
+            "Scenes", "Six Columns", "Storm", "Sweden", "Liquid Glass"
     };
 
     static List<String> ids() {

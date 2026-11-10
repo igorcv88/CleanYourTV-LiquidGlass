@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Koti</string>
+    <string name="app_name">Cleaner TV Liquid Glass</string>
     <string name="inputs">Lähteet</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Asetukset</string>
@@ -25,7 +25,7 @@
     <string name="vpn">VPN</string>
     <string name="vpn_off">VPN pois päältä</string>
     <string name="home_settings">Valitse oletuskotinäkymä</string>
-    <string name="home_settings_help">Valitse alkuperäinen kotinäkymä, jos haluat lopettaa CleanYourTV:n käytön kotinäkymänä, tai CleanYourTV palataksesi siihen. Alkuperäisen käynnistimen on oltava käytössä ja television on tarjottava kotinäkymän valinta. Jos käynnistin on poistettu käytöstä, aja ensin palautusskripti.</string>
+    <string name="home_settings_help">Valitse alkuperäinen kotinäkymä, jos haluat lopettaa Cleaner TV Liquid Glass:n käytön kotinäkymänä, tai Cleaner TV Liquid Glass palataksesi siihen. Alkuperäisen käynnistimen on oltava käytössä ja television on tarjottava kotinäkymän valinta. Jos käynnistin on poistettu käytöstä, aja ensin palautusskripti.</string>
     <string name="launcher_settings">Käynnistimen asetukset</string>
     <string name="native_settings">Valmistajan asetukset</string>
     <string name="columns_label">Sovelluksia rivillä</string>

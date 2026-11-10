@@ -184,7 +184,7 @@ final class BrazilAerials {
         c.setConnectTimeout(9000);
         c.setReadTimeout(25000);
         c.setInstanceFollowRedirects(false);
-        c.setRequestProperty("User-Agent", "PersonalTVHome/3.3 (+https://github.com/igorcv88/CleanYourTV-AppleTV)");
+        c.setRequestProperty("User-Agent", "PersonalTVHome/3.3 (+https://github.com/igorcv88/CleanYourTV-LiquidGlass)");
         return c;
     }
 

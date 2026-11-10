@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Bosh ekran</string>
+    <string name="app_name">Cleaner TV Liquid Glass</string>
     <string name="inputs">Manbalar</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Sozlamalar</string>
@@ -27,7 +27,7 @@
     <string name="vpn">VPN</string>
     <string name="vpn_off">VPN oʻchiq</string>
     <string name="home_settings">Asosiy bosh ekranni tanlash</string>
-    <string name="home_settings_help">CleanYourTV oʻrniga eski bosh ekranga qaytish uchun uni tanlang, CleanYourTV ga qaytish uchun esa CleanYourTV ni. Eski launcher yoqilgan boʻlishi va televizorda bosh ekran tanlash oynasi boʻlishi kerak; agar u oʻchirilgan boʻlsa, avval tiklash skriptini ishga tushiring.</string>
+    <string name="home_settings_help">Cleaner TV Liquid Glass oʻrniga eski bosh ekranga qaytish uchun uni tanlang, Cleaner TV Liquid Glass ga qaytish uchun esa Cleaner TV Liquid Glass ni. Eski launcher yoqilgan boʻlishi va televizorda bosh ekran tanlash oynasi boʻlishi kerak; agar u oʻchirilgan boʻlsa, avval tiklash skriptini ishga tushiring.</string>
     <string name="launcher_settings">Launcher sozlamalari</string>
     <string name="native_settings">Ishlab chiqaruvchi sozlamalari</string>
     <string name="columns_label">Qatordagi ilovalar</string>

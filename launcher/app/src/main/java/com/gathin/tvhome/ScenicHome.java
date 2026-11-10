@@ -2142,13 +2142,13 @@ final class ScenicHome implements NowPlaying.Listener {
             prefs().edit().putBoolean(MUSIC_FROST_KEY, !lightFrost).apply();
             a.recreate();
         }));
-        screenContent.addView(row("Home layout", "Scenic Glass", () -> {
+        screenContent.addView(row("Home layout", "Liquid Glass", () -> {
             choices.edit().putBoolean(Config.SCENIC_KEY, false).apply();
             a.recreate();
         }));
         note("Reduced motion shortens and flattens every animation. Home layout switches back to the classic grid "
                 + "Home; its Settings menu has no way back yet, so use Advanced launcher settings or clear the app's "
-                + "data to return to Scenic Glass.");
+                + "data to return to Liquid Glass.");
         focusFirstRow();
     }
 
@@ -2228,12 +2228,12 @@ final class ScenicHome implements NowPlaying.Listener {
         note("Export Dock favourites, My Space, weather and Home settings as a JSON document. "
                 + "Select Google Drive in your TV's file picker if available; that provider uses its own signed-in "
                 + "Google account. Some TV firmware has no document picker or Drive provider. "
-                + "No account details are read by Scenic.");
+                + "No account details are read by Liquid Glass.");
         screenContent.addView(row(a.getString(R.string.scenic_backup_save), null,
                 () -> a.scenicBackupDocument(false)));
         screenContent.addView(row(a.getString(R.string.scenic_backup_restore), null,
                 () -> a.scenicBackupDocument(true)));
-        note("Restore replaces current Scenic settings after confirmation. Keep a copy somewhere outside the TV. "
+        note("Restore replaces current Liquid Glass settings after confirmation. Keep a copy somewhere outside the TV. "
                 + "If Home fails, the project's tools/restore.sh and tools/recovery.py can restore the stock launcher "
                 + "using ADB; this settings backup cannot repair a broken Home installation.");
         focusFirstRow();

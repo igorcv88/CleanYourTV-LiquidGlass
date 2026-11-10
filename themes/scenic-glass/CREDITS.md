@@ -1,4 +1,4 @@
-The Scenic Glass theme in this fork uses the existing `nature-calm/wallpapers/001.jpg` as its
+The Liquid Glass theme in this fork uses the existing `nature-calm/wallpapers/001.jpg` as its
 default photo. It is reused from the bundled upstream theme assets, not downloaded or duplicated
 inside the APK.
 
@@ -9,7 +9,7 @@ https://commons.wikimedia.org/wiki/File:Karst_mountains_colorful_clouds_and_mist
 License: https://creativecommons.org/licenses/by-sa/4.0/
 
 The original upstream Nature Calm adaptation is cropped to 16:9, resized and darkened slightly
-at its edges. No further changes are made for Scenic Glass.
+at its edges. No further changes are made for Liquid Glass.
 
 `screenshot.jpg` is an **illustration** rendered from `preview.svg`, not a physical TV capture.
-The video-inspired Scenic Glass interface must be visually validated on an actual Android TV.
+The video-inspired Liquid Glass interface must be visually validated on an actual Android TV.
