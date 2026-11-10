@@ -10,4 +10,6 @@
     <item name="tile_bg_orig" type="id" />
     <!-- A glass control's label or icon colour before GlassContent inked it dark. -->
     <item name="glass_ink_orig" type="id" />
+    <!-- The row's shared ink decision (GlassContent.Group), kept on the row view. -->
+    <item name="glass_ink_group" type="id" />
 </resources>

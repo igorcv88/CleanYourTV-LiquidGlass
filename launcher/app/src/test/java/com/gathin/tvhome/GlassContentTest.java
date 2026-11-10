@@ -20,6 +20,16 @@ public class GlassContentTest {
         assertTrue(GlassContent.isLight(0xB3FFFFFF));
         assertFalse("the blue Wi-Fi icon keeps its colour", GlassContent.isLight(0xFF169BFF));
         assertFalse(GlassContent.isLight(0xFF202020));
-        assertEquals(0xB312161C, GlassContent.darkened(0xB3FFFFFF));
+        assertEquals(0x9E1C2A3C, GlassContent.darkened(0xB3FFFFFF));
+        assertEquals("never flat black", 0xE01C2A3C, GlassContent.darkened(0xFFFFFFFF));
+    }
+
+    @Test public void theAerialsLightEasesInsteadOfJumpingEachSample() {
+        assertEquals(0.5f, Scene.smoothed(-1f, 0.5f), 0f);
+        float l = 0.5f;
+        l = Scene.smoothed(l, 0.9f);
+        assertTrue("one sample moves it only a little: " + l, l > 0.5f && l < 0.6f);
+        for (int i = 0; i < 40; i++) l = Scene.smoothed(l, 0.9f);
+        assertEquals(0.9f, l, 0.01f);
     }
 }
