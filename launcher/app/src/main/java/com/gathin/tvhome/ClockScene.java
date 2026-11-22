@@ -192,6 +192,7 @@ final class ClockScene {
                 options.inTargetDensity = scale[1];
             }
             options.inPreferredConfig = Bitmap.Config.RGB_565;
+            options.inPreferredColorSpace = android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
             return BitmapFactory.decodeFile(file.getPath(), options);
         } catch (Exception | OutOfMemoryError failure) {
             return null;
