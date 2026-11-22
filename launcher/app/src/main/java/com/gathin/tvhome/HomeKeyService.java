@@ -254,11 +254,7 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
-        // power_on_home: the first key after power-on hands the TV to the user (power and wake keys don't count).
-        if (powerOnUntil != 0 && event.getAction() == KeyEvent.ACTION_DOWN
-                && event.getKeyCode() != KeyEvent.KEYCODE_POWER && event.getKeyCode() != KeyEvent.KEYCODE_WAKEUP) {
-            powerOnUntil = 0;
-        }
+        disarmPowerOnHome(event);
         if (consumeVolumeKeys && VolumeKeys.handle(this, event)) return true;
         // A scancode entry is more specific than any keycode, so it goes first.
         if (RemoteKeys.handle(this, event, inFront(appScancodes, frontAppScancodes, event.getScanCode()),
@@ -322,6 +318,19 @@ public class HomeKeyService extends AccessibilityService {
         // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
         CharSequence cls = event.getClassName();
         if (!stockHome.isEmpty() && cls != null && stockHome.contains(cls.toString())) openHome();
+    }
+
+    /** Home also receives remote keys when this service has key filtering disabled. */
+    static void keyOnHome(KeyEvent event) {
+        HomeKeyService service = running;
+        if (service != null) service.disarmPowerOnHome(event);
+    }
+
+    private void disarmPowerOnHome(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN
+                && event.getKeyCode() != KeyEvent.KEYCODE_POWER && event.getKeyCode() != KeyEvent.KEYCODE_WAKEUP) {
+            powerOnUntil = 0;
+        }
     }
 
     /** How long power_on_home stays armed after the screen turns on without a reboot. */
